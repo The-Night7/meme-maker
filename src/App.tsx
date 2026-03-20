@@ -48,7 +48,7 @@ const LOCAL_MEME_LIBRARY = [
   {
     url: "/memes/Sad-Pablo-Escobar.jpg", // à voir
     zones: [
-      { top: '10%', left: '10%', width: '80%', height: '20%', placeholder: 'Quand tu attends...' }
+      { top: '40%', left: '10%', width: '80%', height: '20%', placeholder: 'Quand tu attends...' }
     ]
   },
   {
@@ -118,8 +118,8 @@ const LOCAL_MEME_LIBRARY = [
   {
     url: "/memes/squid.jpg", // à voir
     zones: [
-      { top: '30%', left: '5%', width: '80%', height: '20%', placeholder: 'Squid' },
-      { top: '15%', left: '40%', width: '80%', height: '20%', placeholder: 'Bob et Patrick' }
+      { top: '30%', left: '3%', width: '80%', height: '20%', placeholder: 'Squid' },
+      { top: '15%', left: '35%', width: '80%', height: '20%', placeholder: 'Bob et Patrick' }
     ]
   }
 ];
