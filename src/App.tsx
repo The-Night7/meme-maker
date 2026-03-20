@@ -279,7 +279,7 @@ export default function App() {
             <ImageIcon className="w-16 h-16 text-purple-400" />
           </div>
           <h1 className="text-4xl font-extrabold text-center mb-8 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-500">
-            Make It Meme
+            Meme Maker
           </h1>
           
           {errorMsg && (
@@ -360,7 +360,7 @@ export default function App() {
       <header className="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center shadow-md">
         <div className="flex items-center gap-4">
           <ImageIcon className="text-purple-400 w-8 h-8" />
-          <h1 className="text-xl font-bold hidden sm:block">Make It Meme</h1>
+          <h1 className="text-xl font-bold hidden sm:block">Meme Maker</h1>
           <div className="bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-700 flex items-center gap-2">
             <span className="text-sm text-gray-400">Code:</span>
             <span className="font-mono font-bold tracking-wider text-purple-400">{currentRoomCode}</span>
