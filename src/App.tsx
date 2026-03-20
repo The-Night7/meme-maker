@@ -21,18 +21,24 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'make-it-meme-clone';
 
-// --- BIBLIOTHÈQUE DE MEMES (Simulation de fichiers locaux) ---
-// Pour utiliser vos propres images locales, placez-les dans le même dossier que votre serveur
-// et remplacez les URLs par './mon_image.jpg'
+// --- BIBLIOTHÈQUE DE MEMES (Images locales du dossier public/memes) ---
+// Les chemins sont relatifs au dossier public
 const LOCAL_MEME_LIBRARY = [
-  "https://i.imgflip.com/1g8my4.jpg", // Two Buttons
-  "https://i.imgflip.com/1ur9b0.jpg", // Distracted Boyfriend
-  "https://i.imgflip.com/22bdq6.jpg", // Expanding Brain
-  "https://i.imgflip.com/30b1gx.jpg", // Woman Yelling At Cat
-  "https://i.imgflip.com/4t0m5.jpg",  // Doge
-  "https://i.imgflip.com/261o3j.jpg", // Is This A Pigeon
-  "https://i.imgflip.com/1jwhww.jpg", // Roll Safe
-  "https://i.imgflip.com/9ehk.jpg",   // Batman Slapping Robin
+  "/memes/Expanding-Brain.jpg",          // Expanding Brain
+  "/memes/Buff-Doge-vs-Cheems.png",      // Buff Doge vs Cheems
+  "/memes/Tuxedo-Winnie-The-Pooh.webp",  // Tuxedo Winnie The Pooh
+  "/memes/Sad-Pablo-Escobar.jpg",        // Sad Pablo Escobar
+  "/memes/baby-covering-mouth.jpg",      // Baby Covering Mouth
+  "/memes/guy-pointing-at-himself.jpg",  // Guy Pointing at Himself
+  "/memes/ellie-smirk-meme.jpg",         // Ellie Smirk
+  "/memes/rabbit-clock-meme.jpg",        // Rabbit Clock
+  "/memes/3drags.jpg",                   // 3 Dragons
+  "/memes/doomer.jpeg",                  // Doomer
+  "/memes/venom_dunk.jpeg",              // Venom Dunk
+  "/memes/crying_mask.jpeg",             // Crying Mask
+  "/memes/kermit_hug.jpeg",              // Kermit Hug
+  "/memes/singe.jpg",                    // Singe
+  "/memes/squid.jpg",                    // Squid
 ];
 
 // --- BIBLIOTHÈQUE DE THÈMES ---
