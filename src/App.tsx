@@ -5,7 +5,6 @@ import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection } 
 import { AlertCircle, Copy, Play, SkipForward, Users, Trophy, Image as ImageIcon, X, Check, ShieldAlert } from 'lucide-react';
 
 // --- CONFIGURATION FIREBASE OBLIGATOIRE ---
-// Remplacez ces valeurs par celles de VOTRE projet Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyAPQLDfP-C7bH_6FHBo1EG2x0RHm_CTN9U",
   authDomain: "meme-maker-99f30.firebaseapp.com",
@@ -21,24 +20,115 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'make-it-meme-clone';
 
-// --- BIBLIOTHÈQUE DE MEMES (Images locales du dossier public/memes) ---
-// Les chemins sont relatifs au dossier public
+// --- BIBLIOTHÈQUE DE MEMES (Ajustée avec les zones personnalisées) ---
 const LOCAL_MEME_LIBRARY = [
-  "/memes/Expanding-Brain.jpg",          // Expanding Brain
-  "/memes/Buff-Doge-vs-Cheems.png",      // Buff Doge vs Cheems
-  "/memes/Tuxedo-Winnie-The-Pooh.webp",  // Tuxedo Winnie The Pooh
-  "/memes/Sad-Pablo-Escobar.jpg",        // Sad Pablo Escobar
-  "/memes/baby-covering-mouth.jpg",      // Baby Covering Mouth
-  "/memes/guy-pointing-at-himself.jpg",  // Guy Pointing at Himself
-  "/memes/ellie-smirk-meme.jpg",         // Ellie Smirk
-  "/memes/rabbit-clock-meme.jpg",        // Rabbit Clock
-  "/memes/3drags.jpg",                   // 3 Dragons
-  "/memes/doomer.jpeg",                  // Doomer
-  "/memes/venom_dunk.jpeg",              // Venom Dunk
-  "/memes/crying_mask.jpeg",             // Crying Mask
-  "/memes/kermit_hug.jpeg",              // Kermit Hug
-  "/memes/singe.jpg",                    // Singe
-  "/memes/squid.jpg",                    // Squid
+  {
+    url: "/memes/Expanding-Brain.jpg",
+    zones: [
+      { top: '5%', left: '5%', width: '45%', height: '20%', placeholder: 'Cerveau 1' },
+      { top: '30%', left: '5%', width: '45%', height: '20%', placeholder: 'Cerveau 2' },
+      { top: '55%', left: '5%', width: '45%', height: '20%', placeholder: 'Cerveau 3' },
+      { top: '80%', left: '5%', width: '45%', height: '20%', placeholder: 'Cerveau 4' }
+    ]
+  },
+  {
+    url: "/memes/Buff-Doge-vs-Cheems.png",
+    zones: [
+      { top: '10%', left: '5%', width: '45%', height: '30%', placeholder: 'Buff Doge' },
+      { top: '25%', left: '55%', width: '40%', height: '30%', placeholder: 'Cheems' }
+    ]
+  },
+  {
+    url: "/memes/Tuxedo-Winnie-The-Pooh.webp",
+    zones: [
+      { top: '15%', left: '55%', width: '40%', height: '30%', placeholder: 'Normal Pooh' },
+      { top: '65%', left: '55%', width: '40%', height: '30%', placeholder: 'Tuxedo Pooh' }
+    ]
+  },
+  {
+    url: "/memes/Sad-Pablo-Escobar.jpg",
+    zones: [
+      { top: '10%', left: '10%', width: '80%', height: '20%', placeholder: 'Quand tu attends...' }
+    ]
+  },
+  {
+    url: "/memes/baby-covering-mouth.jpg",
+    zones: [
+      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' },
+      { top: '75%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
+    ]
+  },
+  {
+    url: "/memes/guy-pointing-at-himself.jpg",
+    zones: [
+      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' },
+      { top: '75%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
+    ]
+  },
+  {
+    url: "/memes/ellie-smirk-meme.jpg",
+    zones: [
+      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' },
+      { top: '75%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
+    ]
+  },
+  {
+    url: "/memes/rabbit-clock-meme.jpg",
+    zones: [
+      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' },
+      { top: '75%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
+    ]
+  },
+  {
+    url: "/memes/3drags.jpg",
+    zones: [
+      { top: '15%', left: '5%', width: '30%', height: '20%', placeholder: 'Dragon Sérieux 1' },
+      { top: '15%', left: '35%', width: '30%', height: '20%', placeholder: 'Dragon Sérieux 2' },
+      { top: '25%', left: '68%', width: '30%', height: '20%', placeholder: 'Dragon Débile' }
+    ]
+  },
+  {
+    url: "/memes/doomer.jpeg",
+    zones: [
+      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' },
+      { top: '75%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
+    ]
+  },
+  {
+    url: "/memes/venom_dunk.jpeg",
+    zones: [
+      { top: '10%', left: '10%', width: '40%', height: '20%', placeholder: 'Venom' },
+      { top: '70%', left: '50%', width: '40%', height: '20%', placeholder: 'Spiderman' }
+    ]
+  },
+  {
+    url: "/memes/crying_mask.jpeg",
+    zones: [
+      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' },
+      { top: '75%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
+    ]
+  },
+  {
+    url: "/memes/kermit_hug.jpeg",
+    zones: [
+      { top: '30%', left: '5%', width: '40%', height: '20%', placeholder: 'Kermit qui pleure' },
+      { top: '10%', left: '50%', width: '45%', height: '20%', placeholder: 'Kermit en capuche' }
+    ]
+  },
+  {
+    url: "/memes/singe.jpg",
+    zones: [
+      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' },
+      { top: '75%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
+    ]
+  },
+  {
+    url: "/memes/squid.jpg",
+    zones: [
+      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' },
+      { top: '75%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
+    ]
+  }
 ];
 
 // --- BIBLIOTHÈQUE DE THÈMES ---
@@ -71,11 +161,10 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState('');
 
   // États de la phase de jeu
-  const [topText, setTopText] = useState('');
-  const [bottomText, setBottomText] = useState('');
+  const [currentTexts, setCurrentTexts] = useState([]);
   const [localBannedWords, setLocalBannedWords] = useState('merde, con, putain, idiot, nul');
 
-  // 1. INITIALISATION DE L'AUTHENTIFICATION (Règle 3)
+  // 1. INITIALISATION DE L'AUTHENTIFICATION
   useEffect(() => {
     if (!auth) {
       setAuthLoading(false);
@@ -83,7 +172,6 @@ export default function App() {
     }
     const initAuth = async () => {
       try {
-        // Authentification anonyme standard de Firebase
         await signInAnonymously(auth);
       } catch (err) {
         console.error("Erreur d'authentification:", err);
@@ -98,7 +186,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 2. SYNCHRONISATION DE LA ROOM (Règle 1 & 2)
+  // 2. SYNCHRONISATION DE LA ROOM
   useEffect(() => {
     if (!user || !currentRoomCode || !db) return;
 
@@ -119,6 +207,13 @@ export default function App() {
     return () => unsubscribe();
   }, [user, currentRoomCode]);
 
+  // Synchronisation des champs de texte
+  useEffect(() => {
+    if (roomData?.currentMeme?.zones && currentTexts.length !== roomData.currentMeme.zones.length) {
+      setCurrentTexts(Array(roomData.currentMeme.zones.length).fill(''));
+    }
+  }, [roomData?.currentMeme]);
+
   // --- LOGIQUE DU JEU ---
 
   const generateRoomCode = () => {
@@ -135,12 +230,13 @@ export default function App() {
     
     const initialData = {
       hostId: user.uid,
-      status: 'lobby', // lobby, playing, voting, results
+      status: 'lobby',
       players: {
         [user.uid]: { name: playerName, score: 0 }
       },
       bannedWords: localBannedWords,
       currentMeme: null,
+      currentTheme: null,
       captions: {},
       voters: []
     };
@@ -168,9 +264,8 @@ export default function App() {
         return setErrorMsg("La partie a déjà commencé.");
       }
 
-      // Ajouter le joueur
       await updateDoc(roomRef, {
-        [`players.${user.uid}`]: { name: playerName, score: 0 }
+        [`players.${user.uid}`]: { name: playerName, score: data.players[user.uid]?.score || 0 }
       });
       setCurrentRoomCode(code);
       setErrorMsg('');
@@ -189,10 +284,9 @@ export default function App() {
   const censorText = (text, bannedString) => {
     if (!text) return '';
     let result = text;
-    const words = bannedString.split(',').map(w => w.trim().toLowerCase()).filter(w => w.length > 0);
+    const words = bannedString?.split(',').map(w => w.trim().toLowerCase()).filter(w => w.length > 0) || [];
     
     words.forEach(word => {
-      // Échapper les caractères spéciaux regex au cas où
       const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(`\\b${escapedWord}\\b`, 'gi');
       result = result.replace(regex, (match) => {
@@ -215,20 +309,19 @@ export default function App() {
       captions: {},
       voters: []
     });
-    setTopText('');
-    setBottomText('');
+    
+    setCurrentTexts(Array(randomMeme.zones.length).fill(''));
   };
 
   const submitCaption = async () => {
-    if (!topText && !bottomText) return setErrorMsg("Ajoutez du texte !");
-    const censoredTop = censorText(topText, roomData.bannedWords);
-    const censoredBottom = censorText(bottomText, roomData.bannedWords);
+    if (currentTexts.every(t => !t.trim())) return setErrorMsg("Ajoutez du texte !");
+    
+    const censoredTexts = currentTexts.map(t => censorText(t, roomData.bannedWords));
 
     const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
     await updateDoc(roomRef, {
       [`captions.${user.uid}`]: {
-        top: censoredTop,
-        bottom: censoredBottom,
+        texts: censoredTexts,
         votes: 0
       }
     });
@@ -256,18 +349,14 @@ export default function App() {
   const advanceToResults = async () => {
     const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
     
-    // Calculer les scores finaux
     const updates = { status: 'results' };
     Object.entries(roomData.captions || {}).forEach(([uid, cap]) => {
       const currentScore = roomData.players[uid]?.score || 0;
-      // Chaque vote donne 100 points
       updates[`players.${uid}.score`] = currentScore + (cap.votes * 100);
     });
 
     await updateDoc(roomRef, updates);
   };
-
-  // --- RENDUS DES ÉCRANS ---
 
   if (authLoading) return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center font-sans">Chargement...</div>;
 
@@ -341,9 +430,8 @@ export default function App() {
   const playersList = Object.entries(roomData.players || {}).map(([id, p]) => ({ id, ...p }));
   const myCaption = roomData.captions?.[user.uid];
   const allSubmitted = playersList.length > 0 && Object.keys(roomData.captions || {}).length === playersList.length;
-  const allVoted = roomData.voters?.length >= (playersList.length > 1 ? playersList.length - 1 : playersList.length); // Approximation
+  const allVoted = roomData.voters?.length >= (playersList.length > 1 ? playersList.length - 1 : playersList.length);
 
-  // CSS pour les textes des memes
   const memeTextStyle = {
     fontFamily: 'Impact, sans-serif',
     textTransform: 'uppercase',
@@ -356,7 +444,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white font-sans flex flex-col">
-      {/* HEADER */}
       <header className="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center shadow-md">
         <div className="flex items-center gap-4">
           <ImageIcon className="text-purple-400 w-8 h-8" />
@@ -374,7 +461,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* MESSAGES D'ERREUR */}
       {errorMsg && (
         <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-red-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2">
           <AlertCircle className="w-5 h-5" /> {errorMsg}
@@ -382,7 +468,6 @@ export default function App() {
         </div>
       )}
 
-      {/* CONTENU PRINCIPAL */}
       <main className="flex-grow flex flex-col items-center p-4 sm:p-6 overflow-y-auto">
         
         {/* PHASE 1: LOBBY */}
@@ -439,7 +524,6 @@ export default function App() {
         {roomData.status === 'playing' && (
           <div className="w-full max-w-5xl flex flex-col gap-6">
             
-            {/* Bannière du thème */}
             <div className="w-full bg-gradient-to-r from-purple-900/80 to-pink-900/80 border border-purple-500 rounded-2xl p-4 text-center shadow-lg">
               <span className="text-purple-300 text-sm font-bold uppercase tracking-widest">Thème de la manche</span>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">« {roomData.currentTheme} »</h2>
@@ -447,70 +531,85 @@ export default function App() {
 
             <div className="w-full flex flex-col md:flex-row gap-8">
               <div className="flex-1">
-                <div className="bg-black rounded-2xl overflow-hidden relative shadow-2xl border border-gray-700 flex justify-center items-center p-2" style={{ minHeight: '400px' }}>
-                  <img 
-                    src={roomData.currentMeme} 
-                    alt="Meme template" 
-                    className="max-w-full max-h-[60vh] object-contain"
-                  />
-                  
-                  {/* Overlay Texte Haut */}
-              </div>
-            </div>
-
-            <div className="w-full md:w-1/3 flex flex-col gap-6">
-              {!myCaption ? (
-                <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-xl">
-                  <h3 className="text-xl font-bold mb-4">À toi de jouer !</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <input 
-                        type="text" 
-                        placeholder="Texte du haut..." 
-                        value={topText}
-                        onChange={(e) => setTopText(e.target.value)}
-                        className="w-full bg-gray-900 border border-gray-600 rounded-xl px-4 py-3 text-white uppercase focus:ring-2 focus:ring-purple-500 transition-all"
-                      />
-                    </div>
-                    <div>
-                      <input 
-                        type="text" 
-                        placeholder="Texte du bas..." 
-                        value={bottomText}
-                        onChange={(e) => setBottomText(e.target.value)}
-                        className="w-full bg-gray-900 border border-gray-600 rounded-xl px-4 py-3 text-white uppercase focus:ring-2 focus:ring-purple-500 transition-all"
-                      />
-                    </div>
-                    <button 
-                      onClick={submitCaption}
-                      className="w-full bg-purple-600 hover:bg-purple-500 font-bold py-3 rounded-xl mt-4 shadow-lg transition-transform active:scale-95"
-                    >
-                      Valider mon Meme
-                    </button>
+                <div className="bg-black rounded-2xl overflow-hidden shadow-2xl border border-gray-700 p-2">
+                  <div className="relative w-full max-w-2xl mx-auto">
+                    <img 
+                      src={roomData.currentMeme.url} 
+                      alt="Meme template" 
+                      className="w-full h-auto block rounded-lg"
+                    />
+                    
+                    {roomData.currentMeme.zones.map((zone, idx) => (
+                      <div 
+                        key={idx} 
+                        className="absolute flex items-center justify-center pointer-events-none"
+                        style={{
+                          top: zone.top,
+                          left: zone.left,
+                          width: zone.width,
+                          height: zone.height || 'auto',
+                          ...memeTextStyle, 
+                          fontSize: zone.fontSize || 'clamp(1rem, 3vw, 2.5rem)'
+                        }}
+                      >
+                        {myCaption ? myCaption.texts[idx] : (currentTexts[idx] || zone.placeholder.toUpperCase())}
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ) : (
-                <div className="bg-green-900/30 border border-green-500/50 p-6 rounded-2xl shadow-xl flex flex-col items-center text-center">
-                  <Check className="w-16 h-16 text-green-400 mb-4" />
-                  <h3 className="text-xl font-bold text-green-300">Meme Envoyé !</h3>
-                  <p className="text-gray-400 mt-2">En attente des autres joueurs...</p>
-                  <p className="text-sm font-mono mt-4 text-gray-500">
-                    {Object.keys(roomData.captions).length} / {playersList.length} terminés
-                  </p>
-                </div>
-              )}
+              </div>
 
-              {isHost && (
-                <button 
-                  onClick={advanceToVoting}
-                  className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${allSubmitted ? 'bg-yellow-500 hover:bg-yellow-400 text-gray-900 shadow-lg shadow-yellow-500/50' : 'bg-gray-700 text-gray-400 cursor-not-allowed'}`}
-                  disabled={!allSubmitted}
-                >
-                  <SkipForward className="w-5 h-5" /> 
-                  Passer au Vote {allSubmitted ? "Maintenant !" : "(En attente...)"}
-                </button>
-              )}
-            </div>
+              <div className="w-full md:w-1/3 flex flex-col gap-6">
+                {!myCaption ? (
+                  <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-xl">
+                    <h3 className="text-xl font-bold mb-4">À toi de jouer !</h3>
+                    <div className="space-y-4">
+                      {roomData.currentMeme.zones.map((zone, idx) => (
+                        <div key={idx}>
+                          <label className="block text-xs text-gray-400 mb-1">{zone.placeholder}</label>
+                          <input 
+                            type="text" 
+                            placeholder={`${zone.placeholder}...`} 
+                            value={currentTexts[idx] || ''}
+                            onChange={(e) => {
+                              const newTexts = [...currentTexts];
+                              newTexts[idx] = e.target.value;
+                              setCurrentTexts(newTexts);
+                            }}
+                            className="w-full bg-gray-900 border border-gray-600 rounded-xl px-4 py-3 text-white uppercase focus:ring-2 focus:ring-purple-500 transition-all"
+                          />
+                        </div>
+                      ))}
+                      <button 
+                        onClick={submitCaption}
+                        className="w-full bg-purple-600 hover:bg-purple-500 font-bold py-3 rounded-xl mt-4 shadow-lg transition-transform active:scale-95"
+                      >
+                        Valider mon Meme
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-green-900/30 border border-green-500/50 p-6 rounded-2xl shadow-xl flex flex-col items-center text-center">
+                    <Check className="w-16 h-16 text-green-400 mb-4" />
+                    <h3 className="text-xl font-bold text-green-300">Meme Envoyé !</h3>
+                    <p className="text-gray-400 mt-2">En attente des autres joueurs...</p>
+                    <p className="text-sm font-mono mt-4 text-gray-500">
+                      {Object.keys(roomData.captions).length} / {playersList.length} terminés
+                    </p>
+                  </div>
+                )}
+
+                {isHost && (
+                  <button 
+                    onClick={advanceToVoting}
+                    className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${allSubmitted ? 'bg-yellow-500 hover:bg-yellow-400 text-gray-900 shadow-lg shadow-yellow-500/50' : 'bg-gray-700 text-gray-400 cursor-not-allowed'}`}
+                    disabled={!allSubmitted}
+                  >
+                    <SkipForward className="w-5 h-5" /> 
+                    Passer au Vote {allSubmitted ? "Maintenant !" : "(En attente...)"}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -537,13 +636,21 @@ export default function App() {
                 
                 return (
                   <div key={uid} className={`bg-gray-800 rounded-2xl overflow-hidden border-2 flex flex-col ${isMine ? 'border-purple-500/50' : 'border-gray-700 hover:border-gray-500'} transition-all`}>
-                    <div className="relative bg-black flex justify-center p-2" style={{ height: '300px' }}>
-                      <img src={roomData.currentMeme} alt="Meme" className="max-w-full max-h-full object-contain" />
-                      <div className="absolute top-2 w-full px-2 text-center pointer-events-none" style={{ ...memeTextStyle, fontSize: '1.5rem' }}>
-                        {cap.top}
-                      </div>
-                      <div className="absolute bottom-2 w-full px-2 text-center pointer-events-none" style={{ ...memeTextStyle, fontSize: '1.5rem' }}>
-                        {cap.bottom}
+                    <div className="relative bg-black p-2">
+                      <div className="relative w-full mx-auto">
+                        <img src={roomData.currentMeme.url} alt="Meme" className="w-full h-auto block rounded-lg" />
+                        {roomData.currentMeme.zones.map((zone, idx) => (
+                          <div 
+                            key={idx} 
+                            className="absolute flex items-center justify-center pointer-events-none"
+                            style={{ 
+                              top: zone.top, left: zone.left, width: zone.width, height: zone.height || 'auto',
+                              ...memeTextStyle, fontSize: zone.fontSize || 'clamp(0.8rem, 2vw, 1.5rem)' 
+                            }}
+                          >
+                            {cap.texts[idx]}
+                          </div>
+                        ))}
                       </div>
                     </div>
                     <div className="p-4 bg-gray-800 flex justify-between items-center">
@@ -591,7 +698,6 @@ export default function App() {
             </div>
 
             <div className="bg-gray-800 rounded-3xl p-6 shadow-2xl border border-gray-700 mb-8">
-              {/* Classement des memes de cette manche */}
               <div className="space-y-6">
                 {Object.entries(roomData.captions || {})
                   .sort((a, b) => b[1].votes - a[1].votes)
@@ -602,11 +708,21 @@ export default function App() {
                         <div className="text-4xl font-black w-12 text-center text-gray-500">
                           #{index + 1}
                         </div>
-                        <div className="w-32 h-32 bg-black rounded-lg relative flex-shrink-0 overflow-hidden">
-                          <img src={roomData.currentMeme} alt="" className="w-full h-full object-cover opacity-50" />
-                          <div className="absolute inset-0 flex flex-col justify-between p-1">
-                            <span style={{ ...memeTextStyle, fontSize: '0.6rem' }}>{cap.top}</span>
-                            <span style={{ ...memeTextStyle, fontSize: '0.6rem' }}>{cap.bottom}</span>
+                        <div className="w-32 bg-black rounded-lg relative flex-shrink-0 overflow-hidden">
+                          <img src={roomData.currentMeme.url} alt="" className="w-full h-auto block opacity-50" />
+                          <div className="absolute inset-0">
+                            {roomData.currentMeme.zones.map((zone, idx) => (
+                              <div 
+                                key={idx} 
+                                className="absolute flex items-center justify-center pointer-events-none"
+                                style={{ 
+                                  top: zone.top, left: zone.left, width: zone.width, height: zone.height || 'auto',
+                                  ...memeTextStyle, fontSize: '0.4rem', lineHeight: '1' 
+                                }}
+                              >
+                                {cap.texts[idx]}
+                              </div>
+                            ))}
                           </div>
                         </div>
                         <div className="flex-grow">
@@ -624,7 +740,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Classement Global */}
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-8">
               <h3 className="text-xl font-bold mb-4">Classement Général</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
