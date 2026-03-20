@@ -231,7 +231,8 @@ export default function App() {
       currentMeme: null,
       currentTheme: null,
       captions: {},
-      voters: []
+      voters: [],
+      playedMemes: [] // <-- NOUVEAU: Historique des mèmes joués
     };
 
     try {
@@ -292,7 +293,18 @@ export default function App() {
 
   const startGame = async () => {
     const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
-    const randomMeme = LOCAL_MEME_LIBRARY[Math.floor(Math.random() * LOCAL_MEME_LIBRARY.length)];
+    
+    // NOUVEAU: Logique pour ne pas répéter les mèmes
+    let playedMemes = roomData.playedMemes || [];
+    let availableMemes = LOCAL_MEME_LIBRARY.filter(meme => !playedMemes.includes(meme.url));
+
+    // Si tous les mèmes ont été joués, on remet tout à zéro
+    if (availableMemes.length === 0) {
+      availableMemes = LOCAL_MEME_LIBRARY;
+      playedMemes = []; 
+    }
+
+    const randomMeme = availableMemes[Math.floor(Math.random() * availableMemes.length)];
     const randomTheme = THEMES_LIBRARY[Math.floor(Math.random() * THEMES_LIBRARY.length)];
     
     await updateDoc(roomRef, {
@@ -300,7 +312,8 @@ export default function App() {
       currentMeme: randomMeme,
       currentTheme: randomTheme,
       captions: {},
-      voters: []
+      voters: [],
+      playedMemes: [...playedMemes, randomMeme.url] // <-- On ajoute le mème actuel à la liste des mèmes joués
     });
     
     setCurrentTexts(Array(randomMeme.zones.length).fill(''));
