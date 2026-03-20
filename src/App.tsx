@@ -5,6 +5,7 @@ import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection } 
 import { AlertCircle, Copy, Play, SkipForward, Users, Trophy, Image as ImageIcon, X, Check, ShieldAlert } from 'lucide-react';
 
 // --- CONFIGURATION FIREBASE OBLIGATOIRE ---
+// Remplacez ces valeurs par celles de VOTRE projet Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyAPQLDfP-C7bH_6FHBo1EG2x0RHm_CTN9U",
   authDomain: "meme-maker-99f30.firebaseapp.com",
@@ -14,10 +15,11 @@ const firebaseConfig = {
   appId: "1:948871225601:web:c8abcb0760bc60e959bb00",
   measurementId: "G-D9EKR39G3W"
 };
-const app = Object.keys(firebaseConfig).length > 0 ? initializeApp(firebaseConfig) : null;
-const auth = app ? getAuth(app) : null;
-const db = app ? getFirestore(app) : null;
-const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'make-it-meme-clone';
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = 'make-it-meme-clone';
 
 // --- BIBLIOTHÈQUE DE MEMES (Simulation de fichiers locaux) ---
 // Pour utiliser vos propres images locales, placez-les dans le même dossier que votre serveur
@@ -75,11 +77,8 @@ export default function App() {
     }
     const initAuth = async () => {
       try {
-        if (typeof window.__initial_auth_token !== 'undefined' && window.__initial_auth_token) {
-          await signInWithCustomToken(auth, window.__initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
+        // Authentification anonyme standard de Firebase
+        await signInAnonymously(auth);
       } catch (err) {
         console.error("Erreur d'authentification:", err);
       }
