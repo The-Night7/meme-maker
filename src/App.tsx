@@ -118,8 +118,8 @@ const LOCAL_MEME_LIBRARY = [
   {
     url: "/memes/squid.jpg", // à voir
     zones: [
-      { top: '25%', left: '10%', width: '80%', height: '20%', placeholder: 'Squid' },
-      { top: '15%', left: '60%', width: '80%', height: '20%', placeholder: 'Bob et Patrick' }
+      { top: '30%', left: '5%', width: '80%', height: '20%', placeholder: 'Squid' },
+      { top: '15%', left: '40%', width: '80%', height: '20%', placeholder: 'Bob et Patrick' }
     ]
   }
 ];
