@@ -17,7 +17,7 @@ const firebaseConfig = {
 const app = Object.keys(firebaseConfig).length > 0 ? initializeApp(firebaseConfig) : null;
 const auth = app ? getAuth(app) : null;
 const db = app ? getFirestore(app) : null;
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'make-it-meme-clone';
+const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'make-it-meme-clone';
 
 // --- BIBLIOTHÈQUE DE MEMES (Simulation de fichiers locaux) ---
 // Pour utiliser vos propres images locales, placez-les dans le même dossier que votre serveur
@@ -75,8 +75,8 @@ export default function App() {
     }
     const initAuth = async () => {
       try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
+        if (typeof window.__initial_auth_token !== 'undefined' && window.__initial_auth_token) {
+          await signInWithCustomToken(auth, window.__initial_auth_token);
         } else {
           await signInAnonymously(auth);
         }
