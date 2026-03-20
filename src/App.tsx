@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection } from 'firebase/firestore';
-import { AlertCircle, Copy, Play, SkipForward, Users, Trophy, Image as ImageIcon, X, Check, ShieldAlert } from 'lucide-react';
+import { AlertCircle, Copy, Play, SkipForward, Users, Trophy, Image as ImageIcon, X, Check, ShieldAlert, Crown, Medal, Home } from 'lucide-react';
 
 // --- CONFIGURATION FIREBASE OBLIGATOIRE ---
 const firebaseConfig = {
@@ -20,7 +20,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'make-it-meme-clone';
 
-// --- BIBLIOTHÈQUE DE MEMES (Ajustée avec les zones personnalisées) ---
+// --- BIBLIOTHÈQUE DE MEMES ---
 const LOCAL_MEME_LIBRARY = [
   {
     url: "/memes/Expanding-Brain.jpg", // parfait
@@ -144,20 +144,16 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   
-  // États locaux du joueur
   const [playerName, setPlayerName] = useState('');
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [currentRoomCode, setCurrentRoomCode] = useState(null);
   
-  // État du jeu synchronisé (Firestore)
   const [roomData, setRoomData] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // États de la phase de jeu
   const [currentTexts, setCurrentTexts] = useState([]);
   const [localBannedWords, setLocalBannedWords] = useState('merde, con, putain, idiot, nul');
 
-  // 1. INITIALISATION DE L'AUTHENTIFICATION
   useEffect(() => {
     if (!auth) {
       setAuthLoading(false);
@@ -179,7 +175,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 2. SYNCHRONISATION DE LA ROOM
   useEffect(() => {
     if (!user || !currentRoomCode || !db) return;
 
@@ -200,7 +195,6 @@ export default function App() {
     return () => unsubscribe();
   }, [user, currentRoomCode]);
 
-  // Synchronisation des champs de texte
   useEffect(() => {
     if (roomData?.currentMeme?.zones && currentTexts.length !== roomData.currentMeme.zones.length) {
       setCurrentTexts(Array(roomData.currentMeme.zones.length).fill(''));
@@ -223,7 +217,7 @@ export default function App() {
     
     const initialData = {
       hostId: user.uid,
-      status: 'lobby',
+      status: 'lobby', // lobby, playing, voting, results, final
       players: {
         [user.uid]: { name: playerName, score: 0 }
       },
@@ -232,7 +226,7 @@ export default function App() {
       currentTheme: null,
       captions: {},
       voters: [],
-      playedMemes: [] // <-- NOUVEAU: Historique des mèmes joués
+      playedMemes: []
     };
 
     try {
@@ -294,15 +288,11 @@ export default function App() {
   const startGame = async () => {
     const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
     
-    // NOUVEAU: Logique pour ne pas répéter les mèmes
     let playedMemes = roomData.playedMemes || [];
     let availableMemes = LOCAL_MEME_LIBRARY.filter(meme => !playedMemes.includes(meme.url));
 
-    // Si tous les mèmes ont été joués, on remet tout à zéro
-    if (availableMemes.length === 0) {
-      availableMemes = LOCAL_MEME_LIBRARY;
-      playedMemes = []; 
-    }
+    // Si plus de mèmes disponibles (ne devrait pas arriver avec la vérification finale, mais sécurité)
+    if (availableMemes.length === 0) return;
 
     const randomMeme = availableMemes[Math.floor(Math.random() * availableMemes.length)];
     const randomTheme = THEMES_LIBRARY[Math.floor(Math.random() * THEMES_LIBRARY.length)];
@@ -313,7 +303,7 @@ export default function App() {
       currentTheme: randomTheme,
       captions: {},
       voters: [],
-      playedMemes: [...playedMemes, randomMeme.url] // <-- On ajoute le mème actuel à la liste des mèmes joués
+      playedMemes: [...playedMemes, randomMeme.url]
     });
     
     setCurrentTexts(Array(randomMeme.zones.length).fill(''));
@@ -364,9 +354,35 @@ export default function App() {
     await updateDoc(roomRef, updates);
   };
 
+  const advanceToFinalRanking = async () => {
+    const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
+    await updateDoc(roomRef, { status: 'final' });
+  };
+
+  const resetToLobby = async () => {
+    const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
+    
+    // Réinitialiser les scores des joueurs pour une nouvelle partie
+    const resetPlayers = {};
+    Object.entries(roomData.players).forEach(([uid, p]) => {
+      resetPlayers[uid] = { ...p, score: 0 };
+    });
+
+    await updateDoc(roomRef, {
+      status: 'lobby',
+      players: resetPlayers,
+      playedMemes: [],
+      currentMeme: null,
+      currentTheme: null,
+      captions: {},
+      voters: []
+    });
+  };
+
   if (authLoading) return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center font-sans">Chargement...</div>;
 
   if (!currentRoomCode || !roomData) {
+    // ... UI LOBBY CONNEXION ... (inchangé)
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-900 to-purple-900 text-white flex flex-col items-center justify-center p-4 font-sans">
         <div className="max-w-md w-full bg-gray-800/80 p-8 rounded-2xl shadow-2xl backdrop-blur-sm border border-gray-700">
@@ -434,9 +450,13 @@ export default function App() {
 
   const isHost = roomData.hostId === user.uid;
   const playersList = Object.entries(roomData.players || {}).map(([id, p]) => ({ id, ...p }));
+  const sortedPlayers = [...playersList].sort((a, b) => b.score - a.score); // Utilisé pour le classement
+
   const myCaption = roomData.captions?.[user.uid];
   const allSubmitted = playersList.length > 0 && Object.keys(roomData.captions || {}).length === playersList.length;
   const allVoted = roomData.voters?.length >= (playersList.length > 1 ? playersList.length - 1 : playersList.length);
+
+  const isGameFinished = roomData.playedMemes?.length >= LOCAL_MEME_LIBRARY.length;
 
   const memeTextStyle = {
     fontFamily: 'Impact, sans-serif',
@@ -460,7 +480,10 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <span className="bg-gray-700 px-3 py-1 rounded-full text-sm font-medium">{roomData.players[user.uid]?.name}</span>
+          <span className="bg-gray-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
+            {roomData.players[user.uid]?.name} 
+            <span className="text-yellow-400 text-xs">({roomData.players[user.uid]?.score} pts)</span>
+          </span>
           <button onClick={() => setCurrentRoomCode(null)} className="text-gray-400 hover:text-white transition-colors">
             <X className="w-6 h-6" />
           </button>
@@ -488,7 +511,7 @@ export default function App() {
                   <div key={p.id} className="bg-gray-700/50 p-3 rounded-xl flex items-center gap-3 border border-gray-600">
                     <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
                     <span className="font-medium truncate">{p.name}</span>
-                    {p.id === roomData.hostId && <Trophy className="w-4 h-4 text-yellow-400 ml-auto" />}
+                    {p.id === roomData.hostId && <Crown className="w-4 h-4 text-yellow-400 ml-auto" />}
                   </div>
                 ))}
               </div>
@@ -530,9 +553,14 @@ export default function App() {
         {roomData.status === 'playing' && (
           <div className="w-full max-w-5xl flex flex-col gap-6">
             
-            <div className="w-full bg-gradient-to-r from-purple-900/80 to-pink-900/80 border border-purple-500 rounded-2xl p-4 text-center shadow-lg">
-              <span className="text-purple-300 text-sm font-bold uppercase tracking-widest">Thème de la manche</span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">« {roomData.currentTheme} »</h2>
+            <div className="w-full flex justify-between items-center bg-gray-800 p-4 rounded-2xl border border-gray-700">
+              <span className="text-gray-400 font-medium tracking-wide">
+                Manche <span className="text-white">{roomData.playedMemes?.length}</span> sur {LOCAL_MEME_LIBRARY.length}
+              </span>
+              <div className="flex-grow mx-4 max-w-2xl bg-gradient-to-r from-purple-900/80 to-pink-900/80 border border-purple-500 rounded-xl py-2 px-4 text-center shadow-lg">
+                <span className="text-purple-300 text-xs font-bold uppercase tracking-widest block">Thème</span>
+                <h2 className="text-xl sm:text-2xl font-extrabold text-white mt-1">« {roomData.currentTheme} »</h2>
+              </div>
             </div>
 
             <div className="w-full flex flex-col md:flex-row gap-8">
@@ -691,7 +719,7 @@ export default function App() {
           </div>
         )}
 
-        {/* PHASE 4: RESULTATS */}
+        {/* PHASE 4: RESULTATS DE LA MANCHE */}
         {roomData.status === 'results' && (
           <div className="w-full max-w-4xl">
             <h2 className="text-4xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
@@ -747,9 +775,9 @@ export default function App() {
             </div>
 
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-8">
-              <h3 className="text-xl font-bold mb-4">Classement Général</h3>
+              <h3 className="text-xl font-bold mb-4">Classement Général Provisoire</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {playersList.sort((a, b) => b.score - a.score).map((p, i) => (
+                {sortedPlayers.map((p, i) => (
                   <div key={p.id} className="bg-gray-800 p-3 rounded-xl text-center border border-gray-700">
                     <div className="text-sm text-gray-400">#{i + 1}</div>
                     <div className="font-bold truncate">{p.name}</div>
@@ -760,14 +788,106 @@ export default function App() {
             </div>
 
             {isHost && (
-              <div className="flex justify-center">
-                <button 
-                  onClick={startGame}
-                  className="bg-blue-600 hover:bg-blue-500 px-8 py-4 rounded-xl font-bold shadow-lg shadow-blue-900/50 flex items-center gap-2 text-xl transition-transform active:scale-95"
-                >
-                  <Play className="w-6 h-6 fill-current" /> Lancer le Meme Suivant
-                </button>
+              <div className="flex justify-center mt-8">
+                {isGameFinished ? (
+                  <button 
+                    onClick={advanceToFinalRanking}
+                    className="bg-yellow-600 hover:bg-yellow-500 px-8 py-5 rounded-xl font-black shadow-lg shadow-yellow-900/50 flex items-center gap-3 text-2xl transition-transform hover:scale-105 active:scale-95 text-white"
+                  >
+                    <Crown className="w-8 h-8" /> Voir le Podium Final !
+                  </button>
+                ) : (
+                  <button 
+                    onClick={startGame}
+                    className="bg-blue-600 hover:bg-blue-500 px-8 py-4 rounded-xl font-bold shadow-lg shadow-blue-900/50 flex items-center gap-2 text-xl transition-transform active:scale-95"
+                  >
+                    <Play className="w-6 h-6 fill-current" /> Lancer le Meme Suivant
+                  </button>
+                )}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* PHASE 5: PODIUM FINAL */}
+        {roomData.status === 'final' && (
+          <div className="w-full max-w-5xl flex flex-col items-center">
+            <h2 className="text-5xl font-extrabold text-center mb-4 text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-yellow-500 to-amber-600">
+              CLASSEMENT FINAL
+            </h2>
+            <p className="text-gray-400 mb-12 text-lg">La partie est terminée ! Tous les mèmes ont été joués.</p>
+
+            {/* Podium Top 3 */}
+            <div className="flex flex-col md:flex-row items-end justify-center gap-4 md:gap-8 mb-16 h-auto md:h-80 w-full px-4">
+              
+              {/* 2ème Place */}
+              {sortedPlayers[1] && (
+                <div className="order-2 md:order-1 flex flex-col items-center w-full md:w-1/3 mt-8 md:mt-0">
+                  <div className="bg-gray-400/20 border border-gray-400 p-6 rounded-t-2xl w-full text-center flex flex-col items-center shadow-lg shadow-gray-500/20">
+                    <Medal className="w-12 h-12 text-gray-400 mb-2" />
+                    <span className="text-2xl font-bold text-gray-200 truncate w-full">{sortedPlayers[1].name}</span>
+                    <span className="text-lg font-mono text-gray-400">{sortedPlayers[1].score} pts</span>
+                  </div>
+                  <div className="bg-gradient-to-b from-gray-600 to-gray-800 w-full h-8 md:h-24 rounded-b-lg border-x border-b border-gray-700 flex justify-center items-center">
+                    <span className="text-3xl font-black text-gray-900/50">2</span>
+                  </div>
+                </div>
+              )}
+
+              {/* 1ère Place */}
+              {sortedPlayers[0] && (
+                <div className="order-1 md:order-2 flex flex-col items-center w-full md:w-1/3 transform md:-translate-y-8 z-10">
+                  <div className="bg-yellow-500/20 border-2 border-yellow-500 p-8 rounded-t-3xl w-full text-center flex flex-col items-center shadow-2xl shadow-yellow-500/30">
+                    <Crown className="w-16 h-16 text-yellow-400 mb-3 drop-shadow-lg" />
+                    <span className="text-3xl font-black text-yellow-400 truncate w-full">{sortedPlayers[0].name}</span>
+                    <span className="text-xl font-mono text-yellow-200 mt-1">{sortedPlayers[0].score} pts</span>
+                  </div>
+                  <div className="bg-gradient-to-b from-yellow-600 to-yellow-800 w-full h-8 md:h-32 rounded-b-xl border-x border-b border-yellow-600 flex justify-center items-center">
+                    <span className="text-5xl font-black text-yellow-900/50">1</span>
+                  </div>
+                </div>
+              )}
+
+              {/* 3ème Place */}
+              {sortedPlayers[2] && (
+                <div className="order-3 flex flex-col items-center w-full md:w-1/3 mt-8 md:mt-0">
+                  <div className="bg-amber-700/20 border border-amber-700 p-6 rounded-t-2xl w-full text-center flex flex-col items-center shadow-lg shadow-amber-900/20">
+                    <Medal className="w-10 h-10 text-amber-600 mb-2" />
+                    <span className="text-xl font-bold text-amber-500 truncate w-full">{sortedPlayers[2].name}</span>
+                    <span className="text-md font-mono text-amber-600">{sortedPlayers[2].score} pts</span>
+                  </div>
+                  <div className="bg-gradient-to-b from-amber-800 to-amber-950 w-full h-8 md:h-16 rounded-b-lg border-x border-b border-amber-900 flex justify-center items-center">
+                    <span className="text-3xl font-black text-amber-950/50">3</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Le Reste du Classement */}
+            {sortedPlayers.length > 3 && (
+              <div className="w-full max-w-2xl bg-gray-800/50 border border-gray-700 rounded-3xl p-6 mb-12">
+                <h3 className="text-xl font-bold text-gray-400 mb-4 border-b border-gray-700 pb-2">Suite du classement</h3>
+                <div className="space-y-2">
+                  {sortedPlayers.slice(3).map((p, i) => (
+                    <div key={p.id} className="flex justify-between items-center bg-gray-900/50 p-4 rounded-xl">
+                      <div className="flex items-center gap-4">
+                        <span className="text-gray-500 font-black w-6">{i + 4}.</span>
+                        <span className="font-medium">{p.name}</span>
+                      </div>
+                      <span className="font-mono text-purple-400">{p.score} pts</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {isHost && (
+              <button 
+                onClick={resetToLobby}
+                className="bg-gray-700 hover:bg-gray-600 px-8 py-4 rounded-xl font-bold shadow-lg flex items-center gap-3 text-lg transition-transform active:scale-95 mt-4"
+              >
+                <Home className="w-6 h-6" /> Retourner au Salon (Nouvelle Partie)
+              </button>
             )}
           </div>
         )}
