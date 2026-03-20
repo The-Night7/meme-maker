@@ -23,7 +23,7 @@ const appId = 'make-it-meme-clone';
 // --- BIBLIOTHÈQUE DE MEMES (Ajustée avec les zones personnalisées) ---
 const LOCAL_MEME_LIBRARY = [
   {
-    url: "/memes/Expanding-Brain.jpg",
+    url: "/memes/Expanding-Brain.jpg", // parfait
     zones: [
       { top: '5%', left: '5%', width: '45%', height: '20%', placeholder: 'Cerveau 1' },
       { top: '30%', left: '5%', width: '45%', height: '20%', placeholder: 'Cerveau 2' },
@@ -32,55 +32,51 @@ const LOCAL_MEME_LIBRARY = [
     ]
   },
   {
-    url: "/memes/Buff-Doge-vs-Cheems.png",
+    url: "/memes/Buff-Doge-vs-Cheems.png", // parfait
     zones: [
       { top: '10%', left: '5%', width: '45%', height: '30%', placeholder: 'Buff Doge' },
       { top: '25%', left: '55%', width: '40%', height: '30%', placeholder: 'Cheems' }
     ]
   },
   {
-    url: "/memes/Tuxedo-Winnie-The-Pooh.webp",
+    url: "/memes/Tuxedo-Winnie-The-Pooh.webp", // parfait
     zones: [
       { top: '15%', left: '55%', width: '40%', height: '30%', placeholder: 'Normal Pooh' },
       { top: '65%', left: '55%', width: '40%', height: '30%', placeholder: 'Tuxedo Pooh' }
     ]
   },
   {
-    url: "/memes/Sad-Pablo-Escobar.jpg",
+    url: "/memes/Sad-Pablo-Escobar.jpg", // à voir
     zones: [
       { top: '10%', left: '10%', width: '80%', height: '20%', placeholder: 'Quand tu attends...' }
     ]
   },
   {
-    url: "/memes/baby-covering-mouth.jpg",
+    url: "/memes/baby-covering-mouth.jpg", // parfait
     zones: [
-      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' },
+      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' }
+    ]
+  },
+  {
+    url: "/memes/guy-pointing-at-himself.jpg", // parfait
+    zones: [
       { top: '75%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
     ]
   },
   {
-    url: "/memes/guy-pointing-at-himself.jpg",
+    url: "/memes/ellie-smirk-meme.jpg", // parfait
     zones: [
-      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' },
       { top: '75%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
     ]
   },
   {
-    url: "/memes/ellie-smirk-meme.jpg",
+    url: "/memes/rabbit-clock-meme.jpg", // parfait
     zones: [
-      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' },
       { top: '75%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
     ]
   },
   {
-    url: "/memes/rabbit-clock-meme.jpg",
-    zones: [
-      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' },
-      { top: '75%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
-    ]
-  },
-  {
-    url: "/memes/3drags.jpg",
+    url: "/memes/3drags.jpg", // parfait
     zones: [
       { top: '15%', left: '5%', width: '30%', height: '20%', placeholder: 'Dragon Sérieux 1' },
       { top: '15%', left: '35%', width: '30%', height: '20%', placeholder: 'Dragon Sérieux 2' },
@@ -88,45 +84,42 @@ const LOCAL_MEME_LIBRARY = [
     ]
   },
   {
-    url: "/memes/doomer.jpeg",
+    url: "/memes/doomer.jpeg", // parfait
     zones: [
-      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' },
-      { top: '75%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
+      { top: '80%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
     ]
   },
   {
-    url: "/memes/venom_dunk.jpeg",
+    url: "/memes/venom_dunk.jpeg", // à voir
     zones: [
       { top: '10%', left: '10%', width: '40%', height: '20%', placeholder: 'Venom' },
       { top: '70%', left: '50%', width: '40%', height: '20%', placeholder: 'Spiderman' }
     ]
   },
   {
-    url: "/memes/crying_mask.jpeg",
+    url: "/memes/crying_mask.jpeg", // parfait
     zones: [
-      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' },
-      { top: '75%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
+      { top: '80%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
     ]
   },
   {
-    url: "/memes/kermit_hug.jpeg",
+    url: "/memes/kermit_hug.jpeg", // à voir
     zones: [
-      { top: '30%', left: '5%', width: '40%', height: '20%', placeholder: 'Kermit qui pleure' },
-      { top: '10%', left: '50%', width: '45%', height: '20%', placeholder: 'Kermit en capuche' }
+      { top: '75%', left: '5%', width: '40%', height: '20%', placeholder: 'Kermit qui regarde' },
+      { top: '75%', left: '50%', width: '45%', height: '20%', placeholder: 'Kermit en hug' }
     ]
   },
   {
-    url: "/memes/singe.jpg",
+    url: "/memes/singe.jpg", // à voir
     zones: [
-      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' },
-      { top: '75%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
+      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' }
     ]
   },
   {
-    url: "/memes/squid.jpg",
+    url: "/memes/squid.jpg", // à voir
     zones: [
-      { top: '5%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Haut' },
-      { top: '75%', left: '10%', width: '80%', height: '20%', placeholder: 'Texte Bas' }
+      { top: '25%', left: '10%', width: '80%', height: '20%', placeholder: 'Squid' },
+      { top: '15%', left: '60%', width: '80%', height: '20%', placeholder: 'Bob et Patrick' }
     ]
   }
 ];
