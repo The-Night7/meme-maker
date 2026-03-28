@@ -212,6 +212,9 @@ export default function App() {
 
   const createRoom = async () => {
     if (!playerName.trim() || !user) return setErrorMsg("Entrez un pseudo.");
+    
+    const censoredPlayerName = censorText(playerName.trim(), localBannedWords);
+
     const code = generateRoomCode();
     const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
     
@@ -219,7 +222,7 @@ export default function App() {
       hostId: user.uid,
       status: 'lobby', // lobby, playing, voting, results, final
       players: {
-        [user.uid]: { name: playerName, score: 0 }
+        [user.uid]: { name: censoredPlayerName, score: 0 }
       },
       bannedWords: localBannedWords,
       currentMeme: null,
@@ -252,8 +255,10 @@ export default function App() {
         return setErrorMsg("La partie a déjà commencé.");
       }
 
+      const censoredPlayerName = censorText(playerName.trim(), data.bannedWords || localBannedWords);
+
       await updateDoc(roomRef, {
-        [`players.${user.uid}`]: { name: playerName, score: data.players[user.uid]?.score || 0 }
+        [`players.${user.uid}`]: { name: censoredPlayerName, score: data.players[user.uid]?.score || 0 }
       });
       setCurrentRoomCode(code);
       setErrorMsg('');
