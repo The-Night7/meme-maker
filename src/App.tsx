@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection } from 'firebase/firestore';
@@ -21,7 +22,7 @@ const db = getFirestore(app);
 const appId = 'make-it-meme-clone';
 
 // --- BIBLIOTHÈQUE DE MEMES ---
-const LOCAL_MEME_LIBRARY = [
+export const LOCAL_MEME_LIBRARY = [
   {
     url: "/memes/Expanding-Brain.jpg", // parfait
     zones: [
@@ -125,7 +126,7 @@ const LOCAL_MEME_LIBRARY = [
 ];
 
 // --- BIBLIOTHÈQUE DE THÈMES ---
-const THEMES_LIBRARY = [
+export const THEMES_LIBRARY = [
   "Quand ton code compile du premier coup",
   "Le lundi matin au bureau",
   "Quand tu vois ton compte en banque à la fin du mois",
