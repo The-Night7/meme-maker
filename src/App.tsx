@@ -882,7 +882,6 @@ export default function App() {
     );
   }
 
-  const isHost = roomData.hostId === user.uid;
   const playersList = Object.entries(roomData.players || {}).map(([id, p]) => ({ id, ...p }));
   const sortedPlayers = [...playersList].sort((a, b) => b.score - a.score); // Utilisé pour le classement
 
