@@ -533,8 +533,10 @@ export default function App() {
 
   // Ouvrir le mode présentateur dans une nouvelle fenêtre
   const openPresenterMode = () => {
-    const url = `${window.location.origin}${window.location.pathname}?room=${currentRoomCode}&presenter=true`;
-    window.open(url, '_blank', 'width=1200,height=800');
+    // Ouvrir le mode présentateur dans un nouvel onglet
+    window.open(`/presenter/${currentRoomCode}`, '_blank');
+    // Ouvrir également le mode administrateur dans un autre onglet si nécessaire
+    window.open(`/admin/${currentRoomCode}`, '_blank');
   };
 
   // Vérifier si l'URL contient le paramètre presenter
