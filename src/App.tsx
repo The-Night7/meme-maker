@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection } from 'firebase/firestore';
-import { AlertCircle, Copy, Play, SkipForward, Users, Trophy, Image as ImageIcon, X, Check, ShieldAlert, Crown, Medal, Home } from 'lucide-react';
+import { AlertCircle, Copy, Play, SkipForward, Users, Trophy, Image as ImageIcon, X, Check, ShieldAlert, Crown, Medal, Home, Eye, EyeOff, Presentation, Flag, ThumbsUp, ThumbsDown, Maximize, ExternalLink } from 'lucide-react';
 
 // --- CONFIGURATION FIREBASE OBLIGATOIRE ---
 const firebaseConfig = {
@@ -154,6 +154,13 @@ export default function App() {
   const [currentTexts, setCurrentTexts] = useState([]);
   const [localBannedWords, setLocalBannedWords] = useState('merde, con, putain, idiot, nul');
 
+  // État pour le mode présentateur
+  const [presenterMode, setPresenterMode] = useState(false);
+  
+  // États pour la censure manuelle
+  const [pendingCaptions, setPendingCaptions] = useState({});
+  const [showModerationPanel, setShowModerationPanel] = useState(false);
+  const [potentiallyInappropriateWords, setPotentiallyInappropriateWords] = useState({});
   useEffect(() => {
     if (!auth) {
       setAuthLoading(false);
@@ -182,7 +189,13 @@ export default function App() {
     
     const unsubscribe = onSnapshot(roomRef, (docSnap) => {
       if (docSnap.exists()) {
-        setRoomData(docSnap.data());
+        const data = docSnap.data();
+        setRoomData(data);
+        
+        // Vérifier s'il y a des légendes en attente de modération
+        if (data.pendingCaptions && isHost(data)) {
+          setPendingCaptions(data.pendingCaptions || {});
+        }
       } else {
         setErrorMsg("La salle n'existe plus.");
         setCurrentRoomCode(null);
@@ -201,8 +214,12 @@ export default function App() {
     }
   }, [roomData?.currentMeme]);
 
-  // --- LOGIQUE DU JEU ---
+  // Fonction pour vérifier si l'utilisateur est l'hôte
+  const isHost = (data = roomData) => {
+    return data?.hostId === user?.uid;
+  };
 
+  // --- LOGIQUE DU JEU ---
   const generateRoomCode = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     let code = '';
@@ -217,7 +234,7 @@ export default function App() {
 
     const code = generateRoomCode();
     const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
-    
+
     const initialData = {
       hostId: user.uid,
       status: 'lobby', // lobby, playing, voting, results, final
@@ -228,8 +245,10 @@ export default function App() {
       currentMeme: null,
       currentTheme: null,
       captions: {},
+      pendingCaptions: {}, // Pour la modération manuelle
       voters: [],
-      playedMemes: []
+      playedMemes: [],
+      moderationEnabled: true // Activer la modération par défaut
     };
 
     try {
@@ -274,6 +293,59 @@ export default function App() {
     await updateDoc(roomRef, { bannedWords: words });
   };
 
+  const toggleModerationEnabled = async () => {
+    if (!isHost()) return;
+    const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
+    await updateDoc(roomRef, { moderationEnabled: !roomData.moderationEnabled });
+  };
+
+  // Fonction améliorée pour la détection des mots interdits
+  const detectInappropriateContent = (text, bannedWordsStr) => {
+    if (!text) return { hasBannedWords: false, detectedWords: [] };
+    
+    const bannedWords = bannedWordsStr?.split(',').map(w => w.trim().toLowerCase()).filter(w => w.length > 0) || [];
+    const detectedWords = [];
+    let hasBannedWords = false;
+    
+    // Vérifier les mots entiers (entourés d'espaces)
+    const wholeWordRegex = new RegExp(`\\b(${bannedWords.join('|')})\\b`, 'gi');
+    let match;
+    while ((match = wholeWordRegex.exec(text)) !== null) {
+      detectedWords.push({
+        word: match[0],
+        isWholeWord: true
+      });
+      hasBannedWords = true;
+    }
+    
+    // Vérifier les mots interdits à l'intérieur d'autres mots
+    bannedWords.forEach(word => {
+      if (word.length < 3) return; // Ignorer les mots trop courts pour éviter les faux positifs
+      
+      const regex = new RegExp(word, 'gi');
+      let innerMatch;
+      while ((innerMatch = regex.exec(text)) !== null) {
+        // Vérifier si ce n'est pas déjà détecté comme mot entier
+        const isAlreadyDetected = detectedWords.some(
+          detected => detected.isWholeWord && 
+          innerMatch.index >= detected.index &&
+          innerMatch.index + innerMatch[0].length <= detected.index + detected.word.length
+        );
+        
+        if (!isAlreadyDetected) {
+          detectedWords.push({
+            word: innerMatch[0],
+            index: innerMatch.index,
+            isWholeWord: false
+          });
+          hasBannedWords = true;
+        }
+      }
+    });
+    
+    return { hasBannedWords, detectedWords };
+  };
+
   const censorText = (text, bannedString) => {
     if (!text) return '';
     let result = text;
@@ -307,30 +379,104 @@ export default function App() {
       currentMeme: randomMeme,
       currentTheme: randomTheme,
       captions: {},
+      pendingCaptions: {},
       voters: [],
       playedMemes: [...playedMemes, randomMeme.url]
     });
     
     setCurrentTexts(Array(randomMeme.zones.length).fill(''));
+    setPotentiallyInappropriateWords({});
   };
 
   const submitCaption = async () => {
     if (currentTexts.every(t => !t.trim())) return setErrorMsg("Ajoutez du texte !");
     
-    const censoredTexts = currentTexts.map(t => censorText(t, roomData.bannedWords));
-
-    const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
-    await updateDoc(roomRef, {
-      [`captions.${user.uid}`]: {
-        texts: censoredTexts,
-        votes: 0
+    // Vérifier si le contenu est potentiellement inapproprié
+    const inappropriateResults = currentTexts.map(text => 
+      detectInappropriateContent(text, roomData.bannedWords)
+    );
+    
+    const hasInappropriateContent = inappropriateResults.some(result => result.hasBannedWords);
+    
+    // Collecter les mots potentiellement problématiques pour l'affichage
+    const inappropriateWords = {};
+    inappropriateResults.forEach((result, idx) => {
+      if (result.detectedWords.length > 0) {
+        inappropriateWords[idx] = result.detectedWords;
       }
+    });
+    
+    // Mettre à jour l'état local pour l'affichage
+    setPotentiallyInappropriateWords(inappropriateWords);
+    
+    // Appliquer la censure automatique aux mots entiers
+    const censoredTexts = currentTexts.map(t => censorText(t, roomData.bannedWords));
+    
+    const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
+    
+    // Si la modération est activée et qu'il y a du contenu inapproprié qui n'est pas un mot entier
+    if (roomData.moderationEnabled && hasInappropriateContent && 
+        inappropriateResults.some(result => result.detectedWords.some(word => !word.isWholeWord))) {
+      // Envoyer à la modération
+      await updateDoc(roomRef, {
+        [`pendingCaptions.${user.uid}`]: {
+          texts: censoredTexts,
+          originalTexts: currentTexts,
+          timestamp: new Date().getTime(),
+          inappropriateWords
+        }
+      });
+      
+      setErrorMsg("Votre mème a été soumis pour modération.");
+    } else {
+      // Pas besoin de modération, publier directement
+      await updateDoc(roomRef, {
+        [`captions.${user.uid}`]: {
+          texts: censoredTexts,
+          votes: 0
+        }
+      });
+    }
+  };
+
+  // Fonctions pour la modération
+  const approvePendingCaption = async (uid) => {
+    if (!isHost()) return;
+    
+    const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
+    const pendingCaption = roomData.pendingCaptions[uid];
+    
+    // Ajouter aux légendes approuvées
+    await updateDoc(roomRef, {
+      [`captions.${uid}`]: {
+        texts: pendingCaption.texts,
+        votes: 0
+      },
+      [`pendingCaptions.${uid}`]: null
+    });
+  };
+  
+  const rejectPendingCaption = async (uid) => {
+    if (!isHost()) return;
+    
+    const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
+    
+    // Supprimer de la liste des légendes en attente
+    await updateDoc(roomRef, {
+      [`pendingCaptions.${uid}`]: null
     });
   };
 
   const advanceToVoting = async () => {
     const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
-    await updateDoc(roomRef, { status: 'voting', voters: [] });
+    
+    // Supprimer toutes les légendes en attente non modérées
+    if (roomData.pendingCaptions && Object.keys(roomData.pendingCaptions).length > 0) {
+      const updates = { status: 'voting', voters: [], pendingCaptions: {} };
+      await updateDoc(roomRef, updates);
+    } else {
+      await updateDoc(roomRef, { status: 'voting', voters: [] });
+    }
   };
 
   const voteForCaption = async (targetUid) => {
@@ -380,11 +526,292 @@ export default function App() {
       currentMeme: null,
       currentTheme: null,
       captions: {},
+      pendingCaptions: {},
       voters: []
     });
   };
 
+  // Ouvrir le mode présentateur dans une nouvelle fenêtre
+  const openPresenterMode = () => {
+    const url = `${window.location.origin}${window.location.pathname}?room=${currentRoomCode}&presenter=true`;
+    window.open(url, '_blank', 'width=1200,height=800');
+  };
+
+  // Vérifier si l'URL contient le paramètre presenter
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const isPresenter = urlParams.get('presenter') === 'true';
+    const roomCode = urlParams.get('room');
+    
+    if (isPresenter) {
+      setPresenterMode(true);
+      if (roomCode && !currentRoomCode) {
+        setCurrentRoomCode(roomCode);
+      }
+    }
+  }, []);
+
   if (authLoading) return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center font-sans">Chargement...</div>;
+
+  // Mode présentateur - affichage simplifié
+  if (presenterMode && roomData) {
+    return (
+      <div className="min-h-screen bg-black text-white font-sans flex flex-col">
+        <header className="bg-gray-900 p-4 flex justify-between items-center">
+          <h1 className="text-2xl font-bold">Mode Présentateur - Salle {currentRoomCode}</h1>
+          <div className="flex items-center gap-4">
+            <span className="bg-purple-900 px-4 py-2 rounded-lg">
+              {roomData.status === 'lobby' ? 'Lobby' : 
+               roomData.status === 'playing' ? 'Création' :
+               roomData.status === 'voting' ? 'Votes' :
+               roomData.status === 'results' ? 'Résultats' : 'Classement Final'}
+            </span>
+            <button onClick={() => window.close()} className="text-gray-400 hover:text-white">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+        </header>
+        
+        <main className="flex-grow flex flex-col items-center justify-center p-8">
+          {roomData.status === 'lobby' && (
+            <div className="text-center">
+              <h2 className="text-4xl font-bold mb-8">En attente des joueurs</h2>
+              <div className="text-8xl font-mono font-bold text-purple-500 mb-12">{currentRoomCode}</div>
+              <div className="grid grid-cols-4 gap-6 max-w-4xl mx-auto">
+                {Object.values(roomData.players || {}).map((player, idx) => (
+                  <div key={idx} className="bg-gray-800 p-4 rounded-xl text-center">
+                    <div className="text-2xl font-bold truncate">{player.name}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {roomData.status === 'playing' && (
+            <div className="text-center w-full max-w-5xl">
+              <h2 className="text-4xl font-bold mb-6">Création des Mèmes</h2>
+              <div className="bg-purple-900/50 border border-purple-500 rounded-xl p-6 mb-12">
+                <h3 className="text-2xl font-bold mb-2">Thème</h3>
+                <p className="text-4xl">« {roomData.currentTheme} »</p>
+              </div>
+              
+              <div className="bg-black p-4 rounded-2xl border border-gray-800 mx-auto max-w-3xl">
+                <div className="relative">
+                  <img 
+                    src={roomData.currentMeme.url}
+                    alt="Meme template"
+                    className="w-full h-auto rounded-lg"
+                  />
+                </div>
+              </div>
+              
+              <div className="mt-12">
+                <h3 className="text-2xl mb-4">Progression</h3>
+                <div className="flex justify-center items-center gap-4">
+                  <div className="h-4 bg-gray-800 rounded-full w-full max-w-md">
+                    <div 
+                      className="h-4 bg-green-500 rounded-full"
+                      style={{ width: `${Object.keys(roomData.captions || {}).length / Object.keys(roomData.players || {}).length * 100}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-xl font-mono">
+                    {Object.keys(roomData.captions || {}).length} / {Object.keys(roomData.players || {}).length}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {roomData.status === 'voting' && (
+            <div className="text-center w-full max-w-6xl">
+              <h2 className="text-4xl font-bold mb-6">Phase de Vote</h2>
+              <div className="bg-yellow-900/50 border border-yellow-500 rounded-xl p-6 mb-12">
+                <h3 className="text-2xl font-bold mb-2">Thème</h3>
+                <p className="text-4xl">« {roomData.currentTheme} »</p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-8">
+                {Object.entries(roomData.captions || {}).map(([uid, cap], idx) => (
+                  <div key={uid} className="bg-gray-900 rounded-2xl overflow-hidden border border-gray-800">
+                    <div className="bg-black p-2">
+                      <div className="relative">
+                        <img src={roomData.currentMeme.url} alt="Meme" className="w-full h-auto rounded-lg" />
+                        {roomData.currentMeme.zones.map((zone, zIdx) => (
+                          <div 
+                            key={zIdx} 
+                            className="absolute flex items-center justify-center pointer-events-none"
+                            style={{ 
+                              top: zone.top, left: zone.left, width: zone.width, height: zone.height || 'auto',
+                              fontFamily: 'Impact, sans-serif',
+                              textTransform: 'uppercase',
+                              color: 'white',
+                              textShadow: '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000',
+                              wordWrap: 'break-word',
+                              textAlign: 'center',
+                              fontSize: 'clamp(1rem, 3vw, 2rem)'
+                            }}
+                          >
+                            {cap.texts[zIdx]}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="p-4 bg-gray-900 text-center">
+                      <span className="text-xl font-bold">Mème #{idx + 1}</span>
+                      {cap.votes > 0 && (
+                        <div className="mt-2 text-yellow-400 font-bold">{cap.votes} votes</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="mt-12">
+                <h3 className="text-2xl mb-4">Progression des votes</h3>
+                <div className="flex justify-center items-center gap-4">
+                  <div className="h-4 bg-gray-800 rounded-full w-full max-w-md">
+                    <div 
+                      className="h-4 bg-yellow-500 rounded-full"
+                      style={{ width: `${(roomData.voters?.length || 0) / (Object.keys(roomData.players || {}).length - 1) * 100}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-xl font-mono">
+                    {roomData.voters?.length || 0} / {Math.max(1, Object.keys(roomData.players || {}).length - 1)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {roomData.status === 'results' && (
+            <div className="text-center w-full max-w-5xl">
+              <h2 className="text-5xl font-bold mb-12 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
+                Résultats de la Manche
+              </h2>
+              
+              <div className="bg-gray-900 rounded-3xl p-8 border border-gray-700 mb-12">
+                <div className="text-center mb-8">
+                  <span className="text-gray-400 text-lg">Thème : </span>
+                  <span className="text-3xl font-bold">« {roomData.currentTheme} »</span>
+                </div>
+                
+                <div className="space-y-8">
+                  {Object.entries(roomData.captions || {})
+                    .sort((a, b) => b[1].votes - a[1].votes)
+                    .map(([uid, cap], index) => {
+                      const author = roomData.players[uid]?.name || "Inconnu";
+                      return (
+                        <div key={uid} className={`flex items-center gap-8 p-6 rounded-2xl ${index === 0 ? 'bg-yellow-900/30 border-2 border-yellow-500' : 'bg-gray-800 border border-gray-700'}`}>
+                          <div className={`text-5xl font-black w-16 text-center ${index === 0 ? 'text-yellow-500' : 'text-gray-500'}`}>
+                            #{index + 1}
+                          </div>
+                          <div className="w-64 bg-black rounded-lg relative overflow-hidden">
+                            <img src={roomData.currentMeme.url} alt="" className="w-full h-auto block" />
+                            <div className="absolute inset-0">
+                              {roomData.currentMeme.zones.map((zone, idx) => (
+                                <div 
+                                  key={idx} 
+                                  className="absolute flex items-center justify-center pointer-events-none"
+                                  style={{ 
+                                    top: zone.top, left: zone.left, width: zone.width, height: zone.height || 'auto',
+                                    fontFamily: 'Impact, sans-serif',
+                                    textTransform: 'uppercase',
+                                    color: 'white',
+                                    textShadow: '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000',
+                                    wordWrap: 'break-word',
+                                    textAlign: 'center',
+                                    fontSize: 'clamp(0.5rem, 1.5vw, 1rem)'
+                                  }}
+                                >
+                                  {cap.texts[idx]}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex-grow">
+                            <h4 className="text-3xl font-bold flex items-center gap-3">
+                              {author} {index === 0 && <Trophy className="text-yellow-400 w-8 h-8" />}
+                            </h4>
+                            <p className="text-xl text-gray-300 mt-2">{cap.votes} votes</p>
+                          </div>
+                          <div className="text-3xl font-bold text-green-400 bg-green-900/30 px-6 py-3 rounded-xl">
+                            +{cap.votes * 100} pts
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {roomData.status === 'final' && (
+            <div className="text-center w-full max-w-6xl">
+              <h2 className="text-6xl font-extrabold mb-12 text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-yellow-500 to-amber-600">
+                CLASSEMENT FINAL
+              </h2>
+              
+              <div className="flex items-end justify-center gap-16 mb-16 h-96">
+                {/* 2ème Place */}
+                {roomData.players && Object.entries(roomData.players).sort((a, b) => b[1].score - a[1].score)[1] && (
+                  <div className="flex flex-col items-center">
+                    <div className="bg-gray-400/20 border-2 border-gray-400 p-8 rounded-t-3xl w-64 text-center">
+                      <Medal className="w-16 h-16 text-gray-400 mb-4" />
+                      <span className="text-3xl font-bold text-gray-200 block truncate">
+                        {Object.entries(roomData.players).sort((a, b) => b[1].score - a[1].score)[1][1].name}
+                      </span>
+                      <span className="text-2xl font-mono text-gray-400 mt-2 block">
+                        {Object.entries(roomData.players).sort((a, b) => b[1].score - a[1].score)[1][1].score} pts
+                      </span>
+                    </div>
+                    <div className="bg-gradient-to-b from-gray-600 to-gray-800 w-64 h-32 rounded-b-lg border-x-2 border-b-2 border-gray-700 flex justify-center items-center">
+                      <span className="text-6xl font-black text-gray-900/50">2</span>
+                    </div>
+                  </div>
+                )}
+                
+                {/* 1ère Place */}
+                {roomData.players && Object.entries(roomData.players).sort((a, b) => b[1].score - a[1].score)[0] && (
+                  <div className="flex flex-col items-center transform -translate-y-12 z-10">
+                    <div className="bg-yellow-500/20 border-4 border-yellow-500 p-10 rounded-t-3xl w-80 text-center">
+                      <Crown className="w-24 h-24 text-yellow-400 mb-6" />
+                      <span className="text-4xl font-black text-yellow-400 block truncate">
+                        {Object.entries(roomData.players).sort((a, b) => b[1].score - a[1].score)[0][1].name}
+                      </span>
+                      <span className="text-3xl font-mono text-yellow-200 mt-3 block">
+                        {Object.entries(roomData.players).sort((a, b) => b[1].score - a[1].score)[0][1].score} pts
+                      </span>
+                    </div>
+                    <div className="bg-gradient-to-b from-yellow-600 to-yellow-800 w-80 h-48 rounded-b-xl border-x-4 border-b-4 border-yellow-600 flex justify-center items-center">
+                      <span className="text-8xl font-black text-yellow-900/50">1</span>
+                    </div>
+                  </div>
+                )}
+                
+                {/* 3ème Place */}
+                {roomData.players && Object.entries(roomData.players).sort((a, b) => b[1].score - a[1].score)[2] && (
+                  <div className="flex flex-col items-center">
+                    <div className="bg-amber-700/20 border-2 border-amber-700 p-6 rounded-t-3xl w-56 text-center">
+                      <Medal className="w-12 h-12 text-amber-600 mb-3" />
+                      <span className="text-2xl font-bold text-amber-500 block truncate">
+                        {Object.entries(roomData.players).sort((a, b) => b[1].score - a[1].score)[2][1].name}
+                      </span>
+                      <span className="text-xl font-mono text-amber-600 mt-1 block">
+                        {Object.entries(roomData.players).sort((a, b) => b[1].score - a[1].score)[2][1].score} pts
+                      </span>
+                    </div>
+                    <div className="bg-gradient-to-b from-amber-800 to-amber-950 w-56 h-20 rounded-b-lg border-x-2 border-b-2 border-amber-900 flex justify-center items-center">
+                      <span className="text-5xl font-black text-amber-950/50">3</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+    );
+}
 
   if (!currentRoomCode || !roomData) {
     // ... UI LOBBY CONNEXION ... (inchangé)
@@ -458,7 +885,8 @@ export default function App() {
   const sortedPlayers = [...playersList].sort((a, b) => b.score - a.score); // Utilisé pour le classement
 
   const myCaption = roomData.captions?.[user.uid];
-  const allSubmitted = playersList.length > 0 && Object.keys(roomData.captions || {}).length === playersList.length;
+  const allSubmitted = playersList.length > 0 && 
+    (Object.keys(roomData.captions || {}).length + Object.keys(roomData.pendingCaptions || {}).length) === playersList.length;
   const allVoted = roomData.voters?.length >= (playersList.length > 1 ? playersList.length - 1 : playersList.length);
 
   const isGameFinished = roomData.playedMemes?.length >= LOCAL_MEME_LIBRARY.length;
@@ -473,6 +901,9 @@ export default function App() {
     lineHeight: '1.1'
   };
 
+  // Nombre de légendes en attente de modération
+  const pendingCaptionsCount = Object.keys(roomData.pendingCaptions || {}).length;
+
   return (
     <div className="min-h-screen bg-gray-900 text-white font-sans flex flex-col">
       <header className="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center shadow-md">
@@ -482,7 +913,24 @@ export default function App() {
           <div className="bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-700 flex items-center gap-2">
             <span className="text-sm text-gray-400">Code:</span>
             <span className="font-mono font-bold tracking-wider text-purple-400">{currentRoomCode}</span>
+            <button 
+              onClick={() => navigator.clipboard.writeText(currentRoomCode)}
+              className="text-gray-500 hover:text-white ml-1"
+              title="Copier le code"
+            >
+              <Copy className="w-4 h-4" />
+            </button>
           </div>
+          {isHost && (
+            <button 
+              onClick={openPresenterMode}
+              className="bg-purple-700 hover:bg-purple-600 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1"
+              title="Ouvrir le mode présentateur"
+            >
+              <Presentation className="w-4 h-4" />
+              <span className="hidden sm:inline">Mode Présentateur</span>
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <span className="bg-gray-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
@@ -535,6 +983,21 @@ export default function App() {
                       onChange={(e) => updateBannedWords(e.target.value)}
                       className="w-full bg-gray-900 border border-gray-600 rounded-xl p-3 text-sm text-gray-300 focus:ring-1 focus:ring-red-500 focus:border-red-500 h-32 resize-none"
                     />
+                    
+                    <div className="mt-4 flex items-center justify-between">
+                      <span className="text-sm text-gray-400">Modération manuelle :</span>
+                      <button 
+                        onClick={toggleModerationEnabled}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                          roomData.moderationEnabled ? 'bg-green-600' : 'bg-gray-600'
+                        }`}
+                      >
+                        {roomData.moderationEnabled ? 'Activée' : 'Désactivée'}
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      La modération manuelle permet de vérifier les mèmes contenant des mots inappropriés avant leur affichage.
+                    </p>
                   </div>
                   <button 
                     onClick={startGame}
@@ -567,6 +1030,92 @@ export default function App() {
                 <h2 className="text-xl sm:text-2xl font-extrabold text-white mt-1">« {roomData.currentTheme} »</h2>
               </div>
             </div>
+
+            {/* Panneau de modération (visible uniquement pour l'hôte) */}
+            {isHost && pendingCaptionsCount > 0 && (
+              <div className="w-full bg-red-900/30 border border-red-500 p-4 rounded-2xl">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold text-red-300 flex items-center gap-2">
+                    <Flag className="text-red-400" /> Modération requise ({pendingCaptionsCount})
+                  </h3>
+                  <button 
+                    onClick={() => setShowModerationPanel(!showModerationPanel)}
+                    className="bg-red-800 hover:bg-red-700 px-4 py-2 rounded-lg text-sm font-medium"
+                  >
+                    {showModerationPanel ? 'Masquer' : 'Afficher'}
+                  </button>
+                </div>
+                
+                {showModerationPanel && (
+                  <div className="space-y-4 mt-4 max-h-96 overflow-y-auto">
+                    {Object.entries(roomData.pendingCaptions || {}).map(([uid, caption]) => {
+                      const playerName = roomData.players[uid]?.name || "Joueur inconnu";
+                      return (
+                        <div key={uid} className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+                          <div className="flex justify-between items-center mb-3">
+                            <h4 className="font-bold">Mème de {playerName}</h4>
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={() => approvePendingCaption(uid)}
+                                className="bg-green-600 hover:bg-green-500 px-3 py-1 rounded-lg text-sm flex items-center gap-1"
+                              >
+                                <ThumbsUp className="w-4 h-4" /> Approuver
+                              </button>
+                              <button 
+                                onClick={() => rejectPendingCaption(uid)}
+                                className="bg-red-600 hover:bg-red-500 px-3 py-1 rounded-lg text-sm flex items-center gap-1"
+                              >
+                                <ThumbsDown className="w-4 h-4" /> Rejeter
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-black rounded-lg overflow-hidden">
+                              <div className="relative">
+                                <img src={roomData.currentMeme.url} alt="Meme" className="w-full h-auto" />
+                                {roomData.currentMeme.zones.map((zone, idx) => (
+                                  <div 
+                                    key={idx} 
+                                    className="absolute flex items-center justify-center pointer-events-none"
+                                    style={{ 
+                                      top: zone.top, left: zone.left, width: zone.width, height: zone.height || 'auto',
+                                      ...memeTextStyle, fontSize: 'clamp(0.6rem, 1.5vw, 1rem)'
+                                    }}
+                                  >
+                                    {caption.texts[idx]}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <h5 className="text-sm font-medium text-red-300 mb-2">Contenu potentiellement inapproprié :</h5>
+                              <ul className="space-y-2">
+                                {caption.originalTexts.map((text, idx) => {
+                                  const inappropriateWords = caption.inappropriateWords?.[idx] || [];
+                                  if (inappropriateWords.length === 0) return null;
+                                  
+                                  return (
+                                    <li key={idx} className="bg-gray-900 p-2 rounded-lg">
+                                      <div className="text-xs text-gray-400">Zone {idx + 1}:</div>
+                                      <div className="text-sm">{text}</div>
+                                      <div className="mt-1 text-xs text-red-400">
+                                        Mots détectés: {inappropriateWords.map(w => w.word).join(', ')}
+                                      </div>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="w-full flex flex-col md:flex-row gap-8">
               <div className="flex-1">
