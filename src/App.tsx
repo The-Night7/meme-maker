@@ -19,7 +19,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = 'make-it-meme';
+const appId = 'make-it-meme-clone';
 
 // --- BIBLIOTHÈQUE DE MEMES ---
 export const LOCAL_MEME_LIBRARY = [
