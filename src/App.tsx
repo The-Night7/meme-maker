@@ -4,12 +4,6 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection } from 'firebase/firestore';
 import { AlertCircle, Copy, Play, SkipForward, Users, Trophy, Image as ImageIcon, X, Check, ShieldAlert, Crown, Medal, Home, Eye, EyeOff, Presentation, Flag, ThumbsUp, ThumbsDown, Maximize, ExternalLink } from 'lucide-react';
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection } from 'firebase/firestore';
-import { AlertCircle, Copy, Play, SkipForward, Users, Trophy, Image as ImageIcon, X, Check, ShieldAlert, Crown, Medal, Home, Eye, EyeOff, Presentation, Flag, ThumbsUp, ThumbsDown, Maximize, ExternalLink } from 'lucide-react';
 
 // --- CONFIGURATION FIREBASE OBLIGATOIRE ---
 const firebaseConfig = {
@@ -2342,7 +2336,7 @@ export default function App() {
   const pendingCaptionsCount = Object.keys(roomData.pendingCaptions || {}).length;
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white font-sans flex flex-col"></div>
+    <div className="min-h-screen bg-gray-900 text-white font-sans flex flex-col">
       <header className="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center shadow-md">
         <div className="flex items-center gap-4">
           <ImageIcon className="text-purple-400 w-8 h-8" />
@@ -2381,7 +2375,8 @@ export default function App() {
       </header>
 
       {errorMsg && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-red-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2"></div>
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-red-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2">
+          <AlertCircle className="w-5 h-5" /> {errorMsg}
           <button onClick={() => setErrorMsg('')}><X className="w-4 h-4 ml-2" /></button>
         </div>
       )}
