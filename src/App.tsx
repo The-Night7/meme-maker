@@ -1,25 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { AlertCircle, Copy, Play, SkipForward, Users, Trophy, Image as ImageIcon, X, Check, ShieldAlert, Crown, Medal, Home, Presentation, Flag, ThumbsUp, ThumbsDown } from 'lucide-react';
-
-// --- CONFIGURATION FIREBASE OBLIGATOIRE ---
-const firebaseConfig = {
-  apiKey: "AIzaSyAPQLDfP-C7bH_6FHBo1EG2x0RHm_CTN9U",
-  authDomain: "meme-maker-99f30.firebaseapp.com",
-  projectId: "meme-maker-99f30",
-  storageBucket: "meme-maker-99f30.firebasestorage.app",
-  messagingSenderId: "948871225601",
-  appId: "1:948871225601:web:c8abcb0760bc60e959bb00",
-  measurementId: "G-D9EKR39G3W"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = 'make-it-meme-clone';
+import { auth, db, appId } from './firebase'; // Importer depuis le fichier centralisé
 
 // --- BIBLIOTHÈQUE DE MEMES ---
 export const LOCAL_MEME_LIBRARY = [
