@@ -89,12 +89,19 @@ export default function AdminView() {
     
     try {
       let playedMemes = roomData.playedMemes || [];
-      let availableMemes = LOCAL_MEME_LIBRARY.filter(meme => !playedMemes.includes(meme.url));
+      let playedThemes = roomData.playedThemes || []; // <-- AJOUT
       
-      if (availableMemes.length === 0) return setError("Tous les mèmes ont été joués !");
+      let availableMemes = LOCAL_MEME_LIBRARY.filter(meme => !playedMemes.includes(meme.url));
+      let availableThemes = THEMES_LIBRARY.filter(theme => !playedThemes.includes(theme)); // <-- AJOUT
+      
+      // Limite stricte de 5 manches
+      if (playedMemes.length >= 5 || availableMemes.length === 0 || availableThemes.length === 0) {
+        setError("La partie est terminée (5 manches max atteintes) !");
+        return;
+      }
       
       const randomMeme = availableMemes[Math.floor(Math.random() * availableMemes.length)];
-      const randomTheme = THEMES_LIBRARY[Math.floor(Math.random() * THEMES_LIBRARY.length)];
+      const randomTheme = availableThemes[Math.floor(Math.random() * availableThemes.length)]; // <-- MODIFIÉ
       const timeLimit = roomData.timeLimit || 60;
       
       // Utilisation du chemin Firestore complet
@@ -106,6 +113,8 @@ export default function AdminView() {
         pendingCaptions: {},
         voters: [],
         playedMemes: [...playedMemes, randomMeme.url],
+        playedThemes: [...playedThemes, randomTheme], // <-- AJOUT
+        rejectedMemes: [],
         timerEndsAt: Date.now() + timeLimit * 1000 // Définit la fin du chrono !
       });
     } catch (err) {
@@ -154,6 +163,7 @@ export default function AdminView() {
         status: 'lobby',
         // Réinitialiser les données de jeu
         playedMemes: [],
+        playedThemes: [], // <-- AJOUT
         captions: {},
         pendingCaptions: {},
         voters: [],
@@ -239,7 +249,7 @@ export default function AdminView() {
   const allSubmitted = playersList.length > 0 && 
     (Object.keys(roomData.captions || {}).length + Object.keys(roomData.pendingCaptions || {}).length) === playersList.length;
   const allVoted = roomData.voters?.length >= (playersList.length > 1 ? playersList.length - 1 : playersList.length);
-  const isGameFinished = roomData.playedMemes?.length >= 10; // Remplacer par la longueur réelle de votre bibliothèque de mèmes
+  const isGameFinished = roomData.playedMemes?.length >= 5; // <-- MODIFIÉ (limite à 5)
 
   return (
     <div className="min-h-screen bg-gray-900 text-white font-sans p-6">

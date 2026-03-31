@@ -48,7 +48,10 @@ export interface RoomData {
   pendingCaptions: Record<string, PendingCaption>;
   voters: string[];
   playedMemes: string[];
+  playedThemes: string[]; // <-- AJOUT
   moderationEnabled: boolean;
+  timeLimit: number;
+  timerEndsAt: number | null;
   rejectedMemes?: string[];
 }
 
@@ -215,6 +218,7 @@ export default function App() {
       pendingCaptions: {},
       voters: [],
       playedMemes: [],
+      playedThemes: [], // <-- AJOUT
       moderationEnabled: true,
       timeLimit: 300,
       timerEndsAt: null,
@@ -335,12 +339,17 @@ export default function App() {
     const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
     
     let playedMemes = roomData.playedMemes || [];
+    let playedThemes = roomData.playedThemes || []; // <-- AJOUT
+    
+    // Filtrage des éléments déjà joués
     let availableMemes = LOCAL_MEME_LIBRARY.filter(meme => !playedMemes.includes(meme.url));
-
-    if (availableMemes.length === 0) return;
-
+    let availableThemes = THEMES_LIBRARY.filter(theme => !playedThemes.includes(theme)); // <-- AJOUT
+    
+    // Stoppe si 5 tours atteints, ou si on n'a plus de mèmes/thèmes
+    if (playedMemes.length >= 5 || availableMemes.length === 0 || availableThemes.length === 0) return;
+    
     const randomMeme = availableMemes[Math.floor(Math.random() * availableMemes.length)];
-    const randomTheme = THEMES_LIBRARY[Math.floor(Math.random() * THEMES_LIBRARY.length)];
+    const randomTheme = availableThemes[Math.floor(Math.random() * availableThemes.length)]; // <-- MODIFIÉ
     
     await updateDoc(roomRef, {
       status: 'playing',
@@ -350,12 +359,13 @@ export default function App() {
       pendingCaptions: {},
       voters: [],
       playedMemes: [...playedMemes, randomMeme.url],
-      timerEndsAt: Date.now() + (roomData.timeLimit || 300) * 1000
+      playedThemes: [...playedThemes, randomTheme], // <-- AJOUT
+      timerEndsAt: Date.now() + (roomData.timeLimit || 300) * 1000,
+      rejectedMemes: []
     });
     
     setCurrentTexts(Array(randomMeme.zones.length).fill(''));
   };
-
   const submitCaption = async () => {
     if (currentTexts.every(t => !t.trim())) return setErrorMsg("Ajoutez du texte !");
     if (!currentRoomCode || !roomData || !user) return;
@@ -480,6 +490,7 @@ export default function App() {
       status: 'lobby',
       players: resetPlayers,
       playedMemes: [],
+      playedThemes: [], // <-- AJOUT
       currentMeme: null,
       currentTheme: null,
       captions: {},
@@ -732,7 +743,7 @@ export default function App() {
   const sortedPlayers = [...playersList].sort((a, b) => b.score - a.score);
   const myCaption = roomData.captions?.[user?.uid || ''];
   const allSubmitted = playersList.length > 0 && (Object.keys(roomData.captions || {}).length + Object.keys(roomData.pendingCaptions || {}).length) === playersList.length;
-  const isGameFinished = roomData.playedMemes?.length >= LOCAL_MEME_LIBRARY.length;
+  const isGameFinished = roomData.playedMemes?.length >= 5; // <-- MODIFIÉ (limite stricte à 5)
   const pendingCaptionsCount = Object.keys(roomData.pendingCaptions || {}).length;
 
   return (
@@ -810,7 +821,7 @@ export default function App() {
         {roomData.status === 'playing' && roomData.currentMeme && (
           <div className="w-full max-w-5xl flex flex-col gap-6">
             <div className="w-full flex justify-between items-center bg-gray-800 p-4 rounded-2xl border border-gray-700">
-              <span className="text-gray-400 font-medium tracking-wide">Manche <span className="text-white">{roomData.playedMemes?.length}</span> sur {LOCAL_MEME_LIBRARY.length}</span>
+              <span className="text-gray-400 font-medium tracking-wide">Manche <span className="text-white">{roomData.playedMemes?.length}</span> sur 5</span>
               <TimerDisplay endsAt={roomData.timerEndsAt} /> {/* <--- CHRONO ICI */}
               <div className="flex-grow mx-4 max-w-2xl bg-gradient-to-r from-purple-900/80 to-pink-900/80 border border-purple-500 rounded-xl py-2 px-4 text-center shadow-lg">
                 <span className="text-purple-300 text-xs font-bold uppercase tracking-widest block">Thème</span>
