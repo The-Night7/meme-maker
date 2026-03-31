@@ -205,6 +205,10 @@ export default function App() {
 
   const createRoom = async () => {
     if (!user) return setErrorMsg("Erreur d'authentification.");
+    
+    // 1. Astuce anti-bloqueur : on ouvre un onglet vierge dès le clic de l'utilisateur
+    const presenterWindow = window.open('', '_blank');
+    
     const code = generateRoomCode();
     const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
 
@@ -212,7 +216,9 @@ export default function App() {
       hostId: user.uid,
       status: 'lobby',
       players: {}, 
-      bannedWords: 'merde, con, putain, idiot, nul',
+      bannedWords: localBannedWords,
+      timeLimit: 300,
+      timerEndsAt: null,
       currentMeme: null,
       currentTheme: null,
       captions: {},
@@ -221,16 +227,19 @@ export default function App() {
       playedMemes: [],
       playedThemes: [], // <-- AJOUT
       moderationEnabled: true,
-      timeLimit: 300,
-      timerEndsAt: null,
       rejectedMemes: []
     };
 
     try {
       await setDoc(roomRef, initialData);
+      
+      // 2. La salle est créée : on redirige l'onglet vierge vers l'écran géant !
+      if (presenterWindow) presenterWindow.location.href = `/presenter/${code}`;
+      
       setCurrentRoomCode(code);
       navigate(`/admin/${code}`);
     } catch (err) {
+      if (presenterWindow) presenterWindow.close(); // On referme l'onglet si erreur
       setErrorMsg("Erreur lors de la création de la salle.");
     }
   };
@@ -247,6 +256,7 @@ export default function App() {
       const data = docSnap.data() as RoomData;
       
       if (data.hostId === user.uid) {
+        window.open(`/presenter/${code}`, '_blank'); // <-- AJOUTE CETTE LIGNE
         navigate(`/admin/${code}`);
         return;
       }

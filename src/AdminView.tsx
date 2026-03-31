@@ -10,7 +10,8 @@ import {
   Play, 
   SkipForward, 
   Trophy, 
-  Crown
+  Crown,
+  Presentation // <-- AJOUTE CETTE ICÔNE
 } from 'lucide-react';
 
 export default function AdminView() {
@@ -254,7 +255,7 @@ export default function AdminView() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white font-sans p-6">
-      <header className="bg-gray-800 border-b border-gray-700 p-4 rounded-xl mb-6 flex justify-between items-center">
+      <header className="bg-gray-800 border-b border-gray-700 p-4 rounded-xl mb-6 flex justify-between items-center shadow-lg">
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-bold">Mode Administrateur</h1>
           <div className="bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-700">
@@ -262,8 +263,19 @@ export default function AdminView() {
             <span className="font-mono font-bold tracking-wider text-purple-400 ml-1">{roomCode}</span>
           </div>
         </div>
-        <div>
-          <span className="bg-red-900/30 px-3 py-1 rounded-full text-sm font-medium border border-red-500">
+        
+        <div className="flex items-center gap-4">
+          {/* Nouveau Bouton : Ouvrir / Rouvrir l'écran géant */}
+          <button 
+            onClick={() => window.open(`/presenter/${roomCode}`, '_blank')}
+            className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors shadow-md"
+            title="Ouvrir l'écran à projeter aux joueurs"
+          >
+            <Presentation className="w-4 h-4" />
+            <span className="hidden sm:inline">Écran Géant</span>
+          </button>
+          
+          <span className="bg-red-900/30 px-3 py-2 rounded-lg text-sm font-medium border border-red-500 flex items-center">
             Admin
           </span>
         </div>
