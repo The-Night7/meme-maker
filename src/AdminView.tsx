@@ -18,6 +18,9 @@ export default function AdminView() {
   const [roomData, setRoomData] = useState(null);
   const [error, setError] = useState(null);
   const [showModerationPanel, setShowModerationPanel] = useState(true);
+  const [localTimeLimit, setLocalTimeLimit] = useState(60);
+  const [localBannedWords, setLocalBannedWords] = useState('merde, con, putain, idiot, nul');
+  const [configSaved, setConfigSaved] = useState(false);
 
   useEffect(() => {
     if (!roomCode) {
@@ -44,6 +47,51 @@ export default function AdminView() {
     return () => unsubscribe();
   }, [roomCode]);
 
+  // Synchroniser les paramètres locaux avec la base de données au chargement
+  useEffect(() => {
+    if (roomData) {
+      if (roomData.timeLimit) setLocalTimeLimit(roomData.timeLimit);
+      if (roomData.bannedWords) setLocalBannedWords(roomData.bannedWords);
+    }
+  }, [roomData?.timeLimit, roomData?.bannedWords]);
+
+  const saveConfig = async () => {
+    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
+      timeLimit: localTimeLimit,
+      bannedWords: localBannedWords
+    });
+    setConfigSaved(true);
+    setTimeout(() => setConfigSaved(false), 2000);
+  };
+
+  // Chronomètre automatique
+  useEffect(() => {
+    if (!roomData?.timerEndsAt || (roomData.status !== 'playing' && roomData.status !== 'voting')) return;
+    
+    const interval = setInterval(() => {
+      if (Date.now() >= roomData.timerEndsAt) {
+        clearInterval(interval);
+        // Le temps est écoulé, on passe à la phase suivante
+        if (roomData.status === 'playing') {
+          advanceToVoting();
+        } else if (roomData.status === 'voting') {
+          advanceToResults();
+        }
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [roomData?.timerEndsAt, roomData?.status]);
+
+  const saveConfig = async () => {
+    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
+      timeLimit: localTimeLimit,
+      bannedWords: localBannedWords
+    });
+    setConfigSaved(true);
+    setTimeout(() => setConfigSaved(false), 2000);
+  };
+
   // Fonctions d'administration
   const startGame = async () => {
     if (!roomData) return;
@@ -52,13 +100,11 @@ export default function AdminView() {
       let playedMemes = roomData.playedMemes || [];
       let availableMemes = LOCAL_MEME_LIBRARY.filter(meme => !playedMemes.includes(meme.url));
       
-      if (availableMemes.length === 0) {
-        setError("Tous les mèmes ont été joués !");
-        return;
-      }
+      if (availableMemes.length === 0) return setError("Tous les mèmes ont été joués !");
       
       const randomMeme = availableMemes[Math.floor(Math.random() * availableMemes.length)];
       const randomTheme = THEMES_LIBRARY[Math.floor(Math.random() * THEMES_LIBRARY.length)];
+      const timeLimit = roomData.timeLimit || 60;
       
       // Utilisation du chemin Firestore complet
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
@@ -68,7 +114,8 @@ export default function AdminView() {
         captions: {},
         pendingCaptions: {},
         voters: [],
-        playedMemes: [...playedMemes, randomMeme.url]
+        playedMemes: [...playedMemes, randomMeme.url],
+        timerEndsAt: Date.now() + timeLimit * 1000 // Définit la fin du chrono !
       });
     } catch (err) {
       console.error("Erreur lors du démarrage de la partie:", err);
@@ -78,15 +125,16 @@ export default function AdminView() {
 
   const advanceToVoting = async () => {
     try {
+      const timeLimit = roomData?.timeLimit || 60;
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
         status: 'voting',
+        timerEndsAt: Date.now() + timeLimit * 1000 // Relance un chrono pour le vote
       });
     } catch (err) {
       console.error("Erreur lors du passage à la phase de vote:", err);
       setError("Impossible de passer à la phase de vote");
     }
   };
-
   const advanceToResults = async () => {
     try {
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
@@ -313,6 +361,34 @@ export default function AdminView() {
               )}
             </div>
           </div>
+          
+          {roomData.status === 'lobby' && (
+            <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 mt-4">
+              <h3 className="text-md font-bold mb-3 text-blue-400">⚙️ Configuration de la partie</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Temps par tour (secondes)</label>
+                  <input
+                    type="number"
+                    value={localTimeLimit}
+                    onChange={(e) => setLocalTimeLimit(Number(e.target.value))}
+                    className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Mots interdits (séparés par des virgules)</label>
+                  <textarea
+                    value={localBannedWords}
+                    onChange={(e) => setLocalBannedWords(e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white h-20 resize-none focus:ring-1 focus:ring-blue-500 outline-none text-sm"
+                  />
+                </div>
+                <button onClick={saveConfig} className="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded-lg font-medium transition-colors">
+                  {configSaved ? "✅ Sauvegardé !" : "Sauvegarder"}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="bg-gray-800 p-4 rounded-xl border border-gray-700">
             <h2 className="text-lg font-bold mb-3">Joueurs</h2>

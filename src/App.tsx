@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import type { User } from "firebase/auth";
-import { doc, setDoc, getDoc, updateDoc, onSnapshot, increment, arrayUnion } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, onSnapshot, increment, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { AlertCircle, Copy, Play, SkipForward, Users, Trophy, Image as ImageIcon, X, Check, ShieldAlert, Crown, Medal, Home, Presentation, Flag, ThumbsUp, ThumbsDown } from 'lucide-react';
-import { auth, db, appId } from './firebase'; 
+import { auth, db, appId } from './firebase';
 
 export interface MemeZone {
   top: string;
@@ -49,6 +49,7 @@ export interface RoomData {
   voters: string[];
   playedMemes: string[];
   moderationEnabled: boolean;
+  rejectedMemes?: string[];
 }
 
 export const LOCAL_MEME_LIBRARY = [
@@ -92,6 +93,29 @@ const memeTextStyle: React.CSSProperties = {
   wordWrap: 'break-word',
   textAlign: 'center',
   lineHeight: '1.1'
+};
+
+// Composant Timer pour afficher le temps restant
+const TimerDisplay = ({ endsAt }: { endsAt: number | null }) => {
+  const [timeLeft, setTimeLeft] = useState(0);
+  
+  useEffect(() => {
+    if (!endsAt) return;
+    
+    const updateTimer = () => setTimeLeft(Math.max(0, Math.floor((endsAt - Date.now()) / 1000)));
+    updateTimer(); // Initial call
+    
+    const interval = setInterval(updateTimer, 500);
+    return () => clearInterval(interval);
+  }, [endsAt]);
+  
+  if (!endsAt) return null;
+  
+  return (
+    <div className={`font-mono text-xl sm:text-2xl font-bold flex items-center gap-2 px-4 py-2 rounded-xl border ${timeLeft <= 10 ? 'bg-red-900/50 border-red-500 text-red-400 animate-pulse' : 'bg-blue-900/50 border-blue-500 text-blue-300'}`}>
+      ⏱️ {timeLeft}s
+    </div>
+  );
 };
 
 export default function App() {
@@ -184,14 +208,17 @@ export default function App() {
       hostId: user.uid,
       status: 'lobby',
       players: {}, 
-      bannedWords: localBannedWords,
+      bannedWords: 'merde, con, putain, idiot, nul',
       currentMeme: null,
       currentTheme: null,
       captions: {},
       pendingCaptions: {},
       voters: [],
       playedMemes: [],
-      moderationEnabled: true
+      moderationEnabled: true,
+      timeLimit: 300,
+      timerEndsAt: null,
+      rejectedMemes: []
     };
 
     try {
@@ -322,7 +349,8 @@ export default function App() {
       captions: {},
       pendingCaptions: {},
       voters: [],
-      playedMemes: [...playedMemes, randomMeme.url]
+      playedMemes: [...playedMemes, randomMeme.url],
+      timerEndsAt: Date.now() + (roomData.timeLimit || 300) * 1000
     });
     
     setCurrentTexts(Array(randomMeme.zones.length).fill(''));
@@ -779,6 +807,7 @@ export default function App() {
           <div className="w-full max-w-5xl flex flex-col gap-6">
             <div className="w-full flex justify-between items-center bg-gray-800 p-4 rounded-2xl border border-gray-700">
               <span className="text-gray-400 font-medium tracking-wide">Manche <span className="text-white">{roomData.playedMemes?.length}</span> sur {LOCAL_MEME_LIBRARY.length}</span>
+              <TimerDisplay endsAt={roomData.timerEndsAt} /> {/* <--- CHRONO ICI */}
               <div className="flex-grow mx-4 max-w-2xl bg-gradient-to-r from-purple-900/80 to-pink-900/80 border border-purple-500 rounded-xl py-2 px-4 text-center shadow-lg">
                 <span className="text-purple-300 text-xs font-bold uppercase tracking-widest block">Thème</span>
                 <h2 className="text-xl sm:text-2xl font-extrabold text-white mt-1">« {roomData.currentTheme} »</h2>
