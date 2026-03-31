@@ -55,15 +55,6 @@ export default function AdminView() {
     }
   }, [roomData?.timeLimit, roomData?.bannedWords]);
 
-  const saveConfig = async () => {
-    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
-      timeLimit: localTimeLimit,
-      bannedWords: localBannedWords
-    });
-    setConfigSaved(true);
-    setTimeout(() => setConfigSaved(false), 2000);
-  };
-
   // Chronomètre automatique
   useEffect(() => {
     if (!roomData?.timerEndsAt || (roomData.status !== 'playing' && roomData.status !== 'voting')) return;
