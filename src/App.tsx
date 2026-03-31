@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
+import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import type { User } from "firebase/auth";
 import { doc, setDoc, getDoc, updateDoc, onSnapshot, increment, arrayUnion } from 'firebase/firestore';
 import { AlertCircle, Copy, Play, SkipForward, Users, Trophy, Image as ImageIcon, X, Check, ShieldAlert, Crown, Medal, Home, Presentation, Flag, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { auth, db, appId } from './firebase'; 
