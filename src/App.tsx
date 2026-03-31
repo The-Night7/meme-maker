@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import type { User } from "firebase/auth";
 import { doc, setDoc, getDoc, updateDoc, onSnapshot, increment, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { AlertCircle, Copy, Play, SkipForward, Users, Trophy, Image as ImageIcon, X, Check, ShieldAlert, Crown, Medal, Home, Presentation, Flag, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { AlertCircle, Copy, Play, SkipForward, Users, Trophy, Image as ImageIcon, X, Check, ShieldAlert, Crown, Medal, Home, Presentation, Flag, ThumbsUp, ThumbsDown, Move } from 'lucide-react';
 import { auth, db, appId } from './firebase';
 
 export interface MemeZone {
@@ -28,6 +28,8 @@ export interface Player {
 export interface Caption {
   texts: string[];
   votes: number;
+  // Ajout des positions personnalisées
+  customPositions?: { top: string; left: string }[];
 }
 
 export interface PendingCaption {
@@ -140,6 +142,87 @@ export default function App() {
   const [presenterMode, setPresenterMode] = useState(false);
   const [showModerationPanel, setShowModerationPanel] = useState(false);
 
+  // État local pour stocker temporairement les positions modifiées par le joueur
+  const [playerZones, setPlayerZones] = useState<MemeZone[]>([]);
+  
+  // Références pour gérer le drag and drop sans re-rendus inutiles
+  const containerRef = useRef<HTMLDivElement>(null);
+  const draggingInfo = useRef<{
+    index: number;
+    startX: number;
+    startY: number;
+    initialLeft: number;
+    initialTop: number;
+  } | null>(null);
+  
+  // --- Logique de Drag and Drop ---
+  const onMouseDown = (e: React.MouseEvent, index: number) => {
+    e.stopPropagation(); // Évite de désélectionner l'input
+    if (!containerRef.current) return;
+    
+    const rect = containerRef.current.getBoundingClientRect();
+    const zone = playerZones[index];
+    
+    // Convertit les positions % en pixels pour le calcul initial
+    const initialLeftPx = (parseFloat(zone.left) / 100) * rect.width;
+    const initialTopPx = (parseFloat(zone.top) / 100) * rect.height;
+    
+    draggingInfo.current = {
+      index,
+      startX: e.clientX,
+      startY: e.clientY,
+      initialLeft: initialLeftPx,
+      initialTop: initialTopPx
+    };
+    
+    // Ajoute les écouteurs globaux pour le mouvement et le relâchement
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const onMouseMove = useCallback((e: MouseEvent) => {
+    if (!draggingInfo.current || !containerRef.current) return;
+    
+    const { index, startX, startY, initialLeft, initialTop } = draggingInfo.current;
+    const rect = containerRef.current.getBoundingClientRect();
+    
+    // Calcule le déplacement en pixels
+    const deltaX = e.clientX - startX;
+    const deltaY = e.clientY - startY;
+    
+    // Nouvelle position en pixels
+    let newLeftPx = initialLeft + deltaX;
+    let newTopPx = initialTop + deltaY;
+    
+    // --- Optionnel : Contraintes pour rester dans l'image ---
+    // newLeftPx = Math.max(0, Math.min(newLeftPx, rect.width - (parseFloat(playerZones[index].width) / 100 * rect.width)));
+    // newTopPx = Math.max(0, Math.min(newTopPx, rect.height - 50)); // 50px de hauteur min
+    
+    // Convertit les nouvelles coordonnées pixels en pourcentages
+    const newLeftPercent = `${(newLeftPx / rect.width) * 100}%`;
+    const newTopPercent = `${(newTopPx / rect.height) * 100}%`;
+    
+    // Met à jour l'état local
+    setPlayerZones(prev => prev.map((z, i) => 
+      i === index ? { ...z, top: newTopPercent, left: newLeftPercent } : z
+    ));
+  }, [playerZones]);
+
+  const onMouseUp = useCallback(() => {
+    draggingInfo.current = null;
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+  }, [onMouseMove]);
+
+  // Nettoyage des écouteurs si le composant est démonté pendant un drag
+  useEffect(() => {
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [onMouseMove, onMouseUp]);
+  // --- Fin Logique Drag and Drop ---
+
   useEffect(() => {
     if (!auth) {
       setAuthLoading(false);
@@ -172,6 +255,13 @@ export default function App() {
     });
     return () => unsubscribe();
   }, [user, currentRoomCode]);
+  
+  // Initialiser les zones locales quand le mème change
+  useEffect(() => {
+    if (roomData?.currentMeme) {
+      setPlayerZones(roomData.currentMeme.zones);
+    }
+  }, [roomData?.currentMeme]);
 
   useEffect(() => {
     if (roomData?.currentMeme?.zones && currentTexts.length !== roomData.currentMeme.zones.length) {
@@ -398,6 +488,12 @@ export default function App() {
     const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
     const updates: Record<string, any> = {};
     
+    // Récupérer les positions personnalisées
+    const customPositions = playerZones.map(zone => ({
+      top: zone.top,
+      left: zone.left
+    }));
+    
     // Si l'utilisateur avait été rejeté, on le retire de la liste des rejets puisqu'il resoumet
     if (roomData.rejectedMemes?.includes(user.uid)) {
       updates.rejectedMemes = arrayRemove(user.uid);
@@ -409,14 +505,16 @@ export default function App() {
           texts: censoredTexts,
           originalTexts: currentTexts,
           timestamp: new Date().getTime(),
-          inappropriateWords
+          inappropriateWords,
+          customPositions // Ajout des positions personnalisées
       };
       await updateDoc(roomRef, updates);
       setErrorMsg("Votre mème a été soumis pour modération.");
     } else {
       updates[`captions.${user.uid}`] = {
           texts: censoredTexts,
-          votes: 0
+          votes: 0,
+          customPositions // Ajout des positions personnalisées
       };
       await updateDoc(roomRef, updates);
     }
@@ -559,8 +657,33 @@ export default function App() {
               </div>
               
               <div className="bg-black p-4 rounded-2xl border border-gray-800 mx-auto max-w-3xl">
+                <div ref={containerRef} className="relative w-full">
                 <img src={roomData.currentMeme.url} alt="Meme template" className="w-full h-auto rounded-lg" />
+                  {playerZones.map((zone: MemeZone, idx: number) => (
+                    <div
+                      key={idx}
+                      className="absolute flex items-center justify-center cursor-move"
+                      style={{
+                        top: zone.top,
+                        left: zone.left,
+                        width: zone.width,
+                        height: zone.height || 'auto',
+                        ...memeTextStyle,
+                        fontSize: zone.fontSize || 'clamp(1rem, 3vw, 2.5rem)',
+                        pointerEvents: myCaption ? 'none' : 'auto' // Désactive le déplacement si déjà soumis
+                      }}
+                      onMouseDown={(e) => !myCaption && onMouseDown(e, idx)}
+                    >
+                      {myCaption ? myCaption.texts[idx] : (currentTexts[idx] || zone.placeholder.toUpperCase())}
+                      {!myCaption && (
+                        <div className="absolute top-0 right-0 opacity-50 hover:opacity-100">
+                          <Move className="w-4 h-4 text-white bg-purple-800 rounded-full p-0.5" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
               </div>
+            </div>
               
               <div className="mt-12">
                 <h3 className="text-2xl mb-4">Progression</h3>
@@ -597,8 +720,12 @@ export default function App() {
                           key={zIdx} 
                           className="absolute flex items-center justify-center pointer-events-none"
                           style={{ 
-                            top: zone.top, left: zone.left, width: zone.width, height: zone.height || 'auto',
-                            ...memeTextStyle, fontSize: 'clamp(1rem, 3vw, 2rem)'
+                            top: cap.customPositions?.[zIdx]?.top || zone.top,
+                            left: cap.customPositions?.[zIdx]?.left || zone.left,
+                            width: zone.width, 
+                            height: zone.height || 'auto',
+                            ...memeTextStyle, 
+                            fontSize: 'clamp(1rem, 3vw, 2rem)'
                           }}
                         >
                           {cap.texts[zIdx]}
