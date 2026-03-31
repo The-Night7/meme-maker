@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, appId } from './firebase'; // <-- Ajout de appId
 import { 
   ThumbsUp, 
   ThumbsDown, 
@@ -26,7 +26,7 @@ export default function AdminView() {
 
     // Écouter les changements de la salle en temps réel
     const unsubscribe = onSnapshot(
-      doc(db, "rooms", roomCode),
+      doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode),
       (snapshot) => {
         if (snapshot.exists()) {
           setRoomData(snapshot.data());
@@ -46,7 +46,7 @@ export default function AdminView() {
   // Fonctions d'administration
   const startGame = async () => {
     try {
-      await updateDoc(doc(db, "rooms", roomCode), {
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
         status: 'playing',
         // Autres champs nécessaires pour démarrer une nouvelle manche
       });
@@ -58,7 +58,7 @@ export default function AdminView() {
 
   const advanceToVoting = async () => {
     try {
-      await updateDoc(doc(db, "rooms", roomCode), {
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
         status: 'voting',
       });
     } catch (err) {
@@ -69,7 +69,7 @@ export default function AdminView() {
 
   const advanceToResults = async () => {
     try {
-      await updateDoc(doc(db, "rooms", roomCode), {
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
         status: 'results',
       });
     } catch (err) {
@@ -80,7 +80,7 @@ export default function AdminView() {
 
   const advanceToFinalRanking = async () => {
     try {
-      await updateDoc(doc(db, "rooms", roomCode), {
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
         status: 'final',
       });
     } catch (err) {
@@ -91,7 +91,7 @@ export default function AdminView() {
 
   const resetToLobby = async () => {
     try {
-      await updateDoc(doc(db, "rooms", roomCode), {
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
         status: 'lobby',
         // Réinitialiser les données de jeu
         playedMemes: [],
@@ -120,7 +120,7 @@ export default function AdminView() {
       const updatedPendingCaptions = { ...roomData.pendingCaptions };
       delete updatedPendingCaptions[uid];
       
-      await updateDoc(doc(db, "rooms", roomCode), {
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
         captions: updatedCaptions,
         pendingCaptions: updatedPendingCaptions
       });
@@ -137,7 +137,7 @@ export default function AdminView() {
       const updatedPendingCaptions = { ...roomData.pendingCaptions };
       delete updatedPendingCaptions[uid];
       
-      await updateDoc(doc(db, "rooms", roomCode), {
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
         pendingCaptions: updatedPendingCaptions
       });
     } catch (err) {

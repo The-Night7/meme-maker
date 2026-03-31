@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, appId } from './firebase'; // <-- Ajout de appId
 import { Trophy, Crown, Medal } from 'lucide-react';
 
 export default function PresenterView() {
@@ -17,7 +17,7 @@ export default function PresenterView() {
 
     // Écouter les changements de la salle en temps réel
     const unsubscribe = onSnapshot(
-      doc(db, "rooms", roomCode),
+      doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), // <-- Chemin corrigé
       (snapshot) => {
         if (snapshot.exists()) {
           setRoomData(snapshot.data());
