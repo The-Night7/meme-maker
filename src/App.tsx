@@ -1,9 +1,66 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, onSnapshot, increment, arrayUnion } from 'firebase/firestore';
 import { AlertCircle, Copy, Play, SkipForward, Users, Trophy, Image as ImageIcon, X, Check, ShieldAlert, Crown, Medal, Home, Presentation, Flag, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { auth, db, appId } from './firebase'; // Importer depuis le fichier centralisé
+
+// Ajoutez ces interfaces après les imports
+export interface MemeZone {
+  top: string;
+  left: string;
+  width: string;
+  height?: string;
+  placeholder: string;
+  fontSize?: string;
+}
+
+export interface MemeTemplate {
+  url: string;
+  zones: MemeZone[];
+}
+
+export interface Player {
+  name: string;
+  score: number;
+}
+
+export interface Caption {
+  texts: string[];
+  votes: number;
+}
+
+export interface PendingCaption {
+  texts: string[];
+  originalTexts: string[];
+  timestamp: number;
+  inappropriateWords: Record<number, any[]>;
+}
+
+export interface RoomData {
+  hostId: string;
+  status: 'lobby' | 'playing' | 'voting' | 'results' | 'final';
+  players: Record<string, Player>;
+  bannedWords: string;
+  currentMeme: MemeTemplate | null;
+  currentTheme: string | null;
+  captions: Record<string, Caption>;
+  pendingCaptions: Record<string, PendingCaption>;
+  voters: string[];
+  playedMemes: string[];
+  moderationEnabled: boolean;
+}
+
+// Puis modifiez vos déclarations d'état:
+import { User } from 'firebase/auth'; // Ajoutez cet import
+
+// Remplacez:
+// const [user, setUser] = useState<any>(null);
+// const [roomData, setRoomData] = useState<any>(null);
+// Par:
+const [user, setUser] = useState<User | null>(null);
+const [roomData, setRoomData] = useState<RoomData | null>(null);
+const [pendingCaptions, setPendingCaptions] = useState<Record<string, PendingCaption>>({});
 
 // --- BIBLIOTHÈQUE DE MEMES ---
 export const LOCAL_MEME_LIBRARY = [
@@ -252,7 +309,7 @@ export default function App() {
       const docSnap = await getDoc(roomRef);
       if (!docSnap.exists()) return setErrorMsg("Salle introuvable.");
       
-      const data = docSnap.data();
+      const data = docSnap.data() as RoomData;
       
       // Si c'est l'hôte qui tente de se reconnecter, on le renvoie à l'admin
       if (data.hostId === user.uid) {
@@ -262,14 +319,18 @@ export default function App() {
       
       // Logique pour les vrais joueurs
       if (!playerName.trim()) return setErrorMsg("Entrez un pseudo.");
-      if (data.status !== 'lobby' && !data.players[user.uid]) {
+      
+      // Sécurité : on vérifie que players existe avant d'y accéder
+      const players = data.players || {};
+      if (data.status !== 'lobby' && !players[user.uid]) {
         return setErrorMsg("La partie a déjà commencé.");
       }
 
       const censoredPlayerName = censorText(playerName.trim(), data.bannedWords || localBannedWords);
+      const existingScore = players[user.uid]?.score || 0;
 
       await updateDoc(roomRef, {
-        [`players.${user.uid}`]: { name: censoredPlayerName, score: data.players[user.uid]?.score || 0 }
+        [`players.${user.uid}`]: { name: censoredPlayerName, score: existingScore }
       });
       setCurrentRoomCode(code);
       setErrorMsg('');
@@ -455,28 +516,33 @@ export default function App() {
   };
 
   const voteForCaption = async (targetUid: string) => {
-    if (targetUid === user.uid) return setErrorMsg("Tu ne peux pas voter pour toi !");
-    if (roomData.voters.includes(user.uid)) return setErrorMsg("Tu as déjà voté.");
+    if (targetUid === user?.uid) return setErrorMsg("Tu ne peux pas voter pour toi !");
+    if (roomData?.voters?.includes(user?.uid)) return setErrorMsg("Tu as déjà voté.");
     if (!currentRoomCode) return;
 
     const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
-    const newVoters = [...(roomData.voters || []), user.uid];
-    const currentVotes = roomData.captions[targetUid]?.votes || 0;
-
+    try {
     await updateDoc(roomRef, {
-      voters: newVoters,
-      [`captions.${targetUid}.votes`]: currentVotes + 1
+        voters: arrayUnion(user.uid), // arrayUnion évite les doublons même si cliqué 2 fois très vite
+        [`captions.${targetUid}.votes`]: increment(1) // increment() gère les ajouts simultanés sans perte de données !
     });
+    } catch (err) {
+      setErrorMsg("Erreur lors de l'enregistrement du vote.");
+    }
   };
 
   const advanceToResults = async () => {
-    if (!currentRoomCode) return;
+    if (!currentRoomCode || !roomData) return;
     const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
     
-    const updates: any = { status: 'results' };
-    Object.entries(roomData.captions || {}).forEach(([uid, cap]: [string, any]) => {
-      const currentScore = roomData.players[uid]?.score || 0;
-      updates[`players.${uid}.score`] = currentScore + (cap.votes * 100);
+    const updates: Record<string, any> = { status: 'results' };
+    
+    // On ajoute les points de façon sécurisée
+    Object.entries(roomData.captions || {}).forEach(([uid, cap]) => {
+      const caption = cap as Caption;
+      if (caption.votes > 0) {
+        updates[`players.${uid}.score`] = increment(caption.votes * 100);
+      }
     });
 
     await updateDoc(roomRef, updates);
@@ -491,10 +557,17 @@ export default function App() {
   const resetToLobby = async () => {
     if (!currentRoomCode) return;
     const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
+    const updates: Record<string, any> = { status: 'results' };
     
     const resetPlayers: any = {};
     Object.entries(roomData.players).forEach(([uid, p]: [string, any]) => {
       resetPlayers[uid] = { ...p, score: 0 };
+    // On ajoute les points de façon sécurisée
+    Object.entries(roomData.captions || {}).forEach(([uid, cap]) => {
+      const caption = cap as Caption;
+      if (caption.votes > 0) {
+        updates[`players.${uid}.score`] = increment(caption.votes * 100);
+      }
     });
 
     await updateDoc(roomRef, {
@@ -507,17 +580,25 @@ export default function App() {
       pendingCaptions: {},
       voters: []
     });
+    await updateDoc(roomRef, updates);
   };
 
   const openPresenterMode = () => {
     window.open(`/presenter/${currentRoomCode}`, '_blank');
     window.open(`/admin/${currentRoomCode}`, '_blank');
+  const advanceToFinalRanking = async () => {
+    if (!currentRoomCode) return;
+    const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
+    await updateDoc(roomRef, { status: 'final' });
   };
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const isPresenter = urlParams.get('presenter') === 'true';
     const roomCode = urlParams.get('room');
+  const resetToLobby = async () => {
+    if (!currentRoomCode) return;
+    const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
     
     if (isPresenter) {
       setPresenterMode(true);
@@ -865,13 +946,53 @@ export default function App() {
     wordWrap: 'break-word',
     textAlign: 'center',
     lineHeight: '1.1'
+    const resetPlayers: any = {};
+    Object.entries(roomData.players).forEach(([uid, p]: [string, any]) => {
+      resetPlayers[uid] = { ...p, score: 0 };
+    });
+
+    await updateDoc(roomRef, {
+      status: 'lobby',
+      players: resetPlayers,
+      playedMemes: [],
+      currentMeme: null,
+      currentTheme: null,
+      captions: {},
+      pendingCaptions: {},
+      voters: []
+    });
   };
 
   const pendingCaptionsCount = Object.keys(roomData.pendingCaptions || {}).length;
 
+  const openPresenterMode = () => {
+    window.open(`/presenter/${currentRoomCode}`, '_blank');
+    window.open(`/admin/${currentRoomCode}`, '_blank');
+  };
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const isPresenter = urlParams.get('presenter') === 'true';
+    const roomCode = urlParams.get('room');
+    
+    if (isPresenter) {
+      setPresenterMode(true);
+      if (roomCode && !currentRoomCode) {
+        setCurrentRoomCode(roomCode);
+      }
+    }
+  }, []);
+
+  if (authLoading) return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center font-sans">Chargement...</div>;
+
+  // Mode présentateur
+  if (presenterMode && roomData) {
   return (
     <div className="min-h-screen bg-gray-900 text-white font-sans flex flex-col">
       <header className="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center shadow-md">
+      <div className="min-h-screen bg-black text-white font-sans flex flex-col">
+        <header className="bg-gray-900 p-4 flex justify-between items-center">
+          <h1 className="text-2xl font-bold">Mode Présentateur - Salle {currentRoomCode}</h1>
         <div className="flex items-center gap-4">
           <ImageIcon className="text-purple-400 w-8 h-8" />
           <h1 className="text-xl font-bold hidden sm:block">Meme Maker</h1>
@@ -901,8 +1022,14 @@ export default function App() {
           <span className="bg-gray-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
             {roomData.players[user.uid]?.name} 
             <span className="text-yellow-400 text-xs">({roomData.players[user.uid]?.score} pts)</span>
+            <span className="bg-purple-900 px-4 py-2 rounded-lg">
+              {roomData.status === 'lobby' ? 'Lobby' : 
+               roomData.status === 'playing' ? 'Création' :
+               roomData.status === 'voting' ? 'Votes' :
+               roomData.status === 'results' ? 'Résultats' : 'Classement Final'}
           </span>
           <button onClick={() => setCurrentRoomCode(null)} className="text-gray-400 hover:text-white transition-colors">
+            <button onClick={() => window.close()} className="text-gray-400 hover:text-white">
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -918,6 +1045,7 @@ export default function App() {
       <main className="flex-grow flex flex-col items-center p-4 sm:p-6 overflow-y-auto">
         
         {/* PHASE 1: LOBBY */}
+        <main className="flex-grow flex flex-col items-center justify-center p-8">
         {roomData.status === 'lobby' && (
           <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
             <div className="bg-gray-800 p-6 rounded-2xl shadow-xl border border-gray-700">
@@ -930,6 +1058,13 @@ export default function App() {
                     <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
                     <span className="font-medium truncate">{p.name}</span>
                     {p.id === roomData.hostId && <Crown className="w-4 h-4 text-yellow-400 ml-auto" />}
+            <div className="text-center">
+              <h2 className="text-4xl font-bold mb-8">En attente des joueurs</h2>
+              <div className="text-8xl font-mono font-bold text-purple-500 mb-12">{currentRoomCode}</div>
+              <div className="grid grid-cols-4 gap-6 max-w-4xl mx-auto">
+                {Object.values(roomData.players || {}).map((player: any, idx) => (
+                  <div key={idx} className="bg-gray-800 p-4 rounded-xl text-center">
+                    <div className="text-2xl font-bold truncate">{player.name}</div>
                   </div>
                 ))}
               </div>
@@ -1337,6 +1472,12 @@ export default function App() {
 
             {/* Podium Top 3 */}
             <div className="flex flex-col md:flex-row items-end justify-center gap-4 md:gap-8 mb-16 h-auto md:h-80 w-full px-4">
+            <div className="text-center w-full max-w-5xl">
+              <h2 className="text-4xl font-bold mb-6">Création des Mèmes</h2>
+              <div className="bg-purple-900/50 border border-purple-500 rounded-xl p-6 mb-12">
+                <h3 className="text-2xl font-bold mb-2">Thème</h3>
+                <p className="text-4xl">« {roomData.currentTheme} »</p>
+              </div>
               
               {/* 2ème Place */}
               {sortedPlayers[1] && (
@@ -1345,6 +1486,9 @@ export default function App() {
                     <Medal className="w-12 h-12 text-gray-400 mb-2" />
                     <span className="text-2xl font-bold text-gray-200 truncate w-full">{sortedPlayers[1].name}</span>
                     <span className="text-lg font-mono text-gray-400">{sortedPlayers[1].score} pts</span>
+              <div className="bg-black p-4 rounded-2xl border border-gray-800 mx-auto max-w-3xl">
+                <div className="relative">
+                  <img src={roomData.currentMeme.url} alt="Meme template" className="w-full h-auto rounded-lg" />
                   </div>
                   <div className="bg-gradient-to-b from-gray-600 to-gray-800 w-full h-8 md:h-24 rounded-b-lg border-x border-b border-gray-700 flex justify-center items-center">
                     <span className="text-3xl font-black text-gray-900/50">2</span>
@@ -1359,10 +1503,22 @@ export default function App() {
                     <Crown className="w-16 h-16 text-yellow-400 mb-3 drop-shadow-lg" />
                     <span className="text-3xl font-black text-yellow-400 truncate w-full">{sortedPlayers[0].name}</span>
                     <span className="text-xl font-mono text-yellow-200 mt-1">{sortedPlayers[0].score} pts</span>
+              
+              <div className="mt-12">
+                <h3 className="text-2xl mb-4">Progression</h3>
+                <div className="flex justify-center items-center gap-4">
+                  <div className="h-4 bg-gray-800 rounded-full w-full max-w-md">
+                    <div 
+                      className="h-4 bg-green-500 rounded-full"
+                      style={{ width: `${Object.keys(roomData.captions || {}).length / Object.keys(roomData.players || {}).length * 100}%` }}
+                    ></div>
                   </div>
                   <div className="bg-gradient-to-b from-yellow-600 to-yellow-800 w-full h-8 md:h-32 rounded-b-xl border-x border-b border-yellow-600 flex justify-center items-center">
                     <span className="text-5xl font-black text-yellow-900/50">1</span>
                   </div>
+                  <span className="text-xl font-mono">
+                    {Object.keys(roomData.captions || {}).length} / {Object.keys(roomData.players || {}).length}
+                  </span>
                 </div>
               )}
 
@@ -1373,6 +1529,7 @@ export default function App() {
                     <Medal className="w-10 h-10 text-amber-600 mb-2" />
                     <span className="text-xl font-bold text-amber-500 truncate w-full">{sortedPlayers[2].name}</span>
                     <span className="text-md font-mono text-amber-600">{sortedPlayers[2].score} pts</span>
+              </div>
                   </div>
                   <div className="bg-gradient-to-b from-amber-800 to-amber-950 w-full h-8 md:h-16 rounded-b-lg border-x border-b border-amber-900 flex justify-center items-center">
                     <span className="text-3xl font-black text-amber-950/50">3</span>
@@ -1391,11 +1548,41 @@ export default function App() {
                       <div className="flex items-center gap-4">
                         <span className="text-gray-500 font-black w-6">{i + 4}.</span>
                         <span className="font-medium">{p.name}</span>
+          
+          {roomData.status === 'voting' && (
+            <div className="text-center w-full max-w-6xl">
+              <h2 className="text-4xl font-bold mb-6">Phase de Vote</h2>
+              <div className="bg-yellow-900/50 border border-yellow-500 rounded-xl p-6 mb-12">
+                <h3 className="text-2xl font-bold mb-2">Thème</h3>
+                <p className="text-4xl">« {roomData.currentTheme} »</p>
                       </div>
                       <span className="font-mono text-purple-400">{p.score} pts</span>
                     </div>
                   ))}
                 </div>
+              
+              <div className="grid grid-cols-2 gap-8">
+                {Object.entries(roomData.captions || {}).map(([uid, cap]: [string, any], idx) => (
+                  <div key={uid} className="bg-gray-900 rounded-2xl overflow-hidden border border-gray-800">
+                    <div className="bg-black p-2">
+                      <div className="relative">
+                        <img src={roomData.currentMeme.url} alt="Meme" className="w-full h-auto rounded-lg" />
+                        {roomData.currentMeme.zones.map((zone: any, zIdx: number) => (
+                          <div 
+                            key={zIdx} 
+                            className="absolute flex items-center justify-center pointer-events-none"
+                            style={{ 
+                              top: zone.top, left: zone.left, width: zone.width, height: zone.height || 'auto',
+                              fontFamily: 'Impact, sans-serif',
+                              textTransform: 'uppercase',
+                              color: 'white',
+                              textShadow: '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000',
+                              wordWrap: 'break-word',
+                              textAlign: 'center',
+                              fontSize: 'clamp(1rem, 3vw, 2rem)'
+                            }}
+                          >
+                            {cap.texts[zIdx]}
               </div>
             )}
 
@@ -1407,10 +1594,297 @@ export default function App() {
                 <Home className="w-6 h-6" /> Retourner au Salon (Nouvelle Partie)
               </button>
             )}
+                        ))}
           </div>
         )}
 
       </main>
     </div>
+                    <div className="p-4 bg-gray-900 text-center">
+                      <span className="text-xl font-bold">Mème #{idx + 1}</span>
+                      {cap.votes > 0 && (
+                        <div className="mt-2 text-yellow-400 font-bold">{cap.votes} votes</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="mt-12">
+                <h3 className="text-2xl mb-4">Progression des votes</h3>
+                <div className="flex justify-center items-center gap-4">
+                  <div className="h-4 bg-gray-800 rounded-full w-full max-w-md">
+                    <div 
+                      className="h-4 bg-yellow-500 rounded-full"
+                      style={{ width: `${(roomData.voters?.length || 0) / (Object.keys(roomData.players || {}).length - 1) * 100}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-xl font-mono">
+                    {roomData.voters?.length || 0} / {Math.max(1, Object.keys(roomData.players || {}).length - 1)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {roomData.status === 'results' && (
+            <div className="text-center w-full max-w-5xl">
+              <h2 className="text-5xl font-bold mb-12 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
+                Résultats de la Manche
+              </h2>
+              
+              <div className="bg-gray-900 rounded-3xl p-8 border border-gray-700 mb-12">
+                <div className="text-center mb-8">
+                  <span className="text-gray-400 text-lg">Thème : </span>
+                  <span className="text-3xl font-bold">« {roomData.currentTheme} »</span>
+                </div>
+                
+                <div className="space-y-8">
+                  {Object.entries(roomData.captions || {})
+                    .sort((a: any, b: any) => b[1].votes - a[1].votes)
+                    .map(([uid, cap]: [string, any], index) => {
+                      const author = roomData.players[uid]?.name || "Inconnu";
+                      return (
+                        <div key={uid} className={`flex items-center gap-8 p-6 rounded-2xl ${index === 0 ? 'bg-yellow-900/30 border-2 border-yellow-500' : 'bg-gray-800 border border-gray-700'}`}>
+                          <div className={`text-5xl font-black w-16 text-center ${index === 0 ? 'text-yellow-500' : 'text-gray-500'}`}>
+                            #{index + 1}
+                          </div>
+                          <div className="w-64 bg-black rounded-lg relative overflow-hidden">
+                            <img src={roomData.currentMeme.url} alt="" className="w-full h-auto block" />
+                            <div className="absolute inset-0">
+                              {roomData.currentMeme.zones.map((zone: any, idx: number) => (
+                                <div 
+                                  key={idx} 
+                                  className="absolute flex items-center justify-center pointer-events-none"
+                                  style={{ 
+                                    top: zone.top, left: zone.left, width: zone.width, height: zone.height || 'auto',
+                                    fontFamily: 'Impact, sans-serif',
+                                    textTransform: 'uppercase',
+                                    color: 'white',
+                                    textShadow: '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000',
+                                    wordWrap: 'break-word',
+                                    textAlign: 'center',
+                                    fontSize: 'clamp(0.5rem, 1.5vw, 1rem)'
+                                  }}
+                                >
+                                  {cap.texts[idx]}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex-grow">
+                            <h4 className="text-3xl font-bold flex items-center gap-3">
+                              {author} {index === 0 && <Trophy className="text-yellow-400 w-8 h-8" />}
+                            </h4>
+                            <p className="text-xl text-gray-300 mt-2">{cap.votes} votes</p>
+                          </div>
+                          <div className="text-3xl font-bold text-green-400 bg-green-900/30 px-6 py-3 rounded-xl">
+                            +{cap.votes * 100} pts
+                          </div>
+                        </div>
   );
+                    })}
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {roomData.status === 'final' && (
+            <div className="text-center w-full max-w-6xl">
+              <h2 className="text-6xl font-extrabold mb-12 text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-yellow-500 to-amber-600">
+                CLASSEMENT FINAL
+              </h2>
+              
+              <div className="flex items-end justify-center gap-16 mb-16 h-96">
+                {roomData.players && Object.entries(roomData.players).sort((a: any, b: any) => b[1].score - a[1].score)[1] && (
+                  <div className="flex flex-col items-center">
+                    <div className="bg-gray-400/20 border-2 border-gray-400 p-8 rounded-t-3xl w-64 text-center">
+                      <Medal className="w-16 h-16 text-gray-400 mb-4" />
+                      <span className="text-3xl font-bold text-gray-200 block truncate">
+                        {Object.entries(roomData.players).sort((a: any, b: any) => b[1].score - a[1].score)[1][1].name}
+                      </span>
+                      <span className="text-2xl font-mono text-gray-400 mt-2 block">
+                        {Object.entries(roomData.players).sort((a: any, b: any) => b[1].score - a[1].score)[1][1].score} pts
+                      </span>
+                    </div>
+                    <div className="bg-gradient-to-b from-gray-600 to-gray-800 w-64 h-32 rounded-b-lg border-x-2 border-b-2 border-gray-700 flex justify-center items-center">
+                      <span className="text-6xl font-black text-gray-900/50">2</span>
+                    </div>
+                  </div>
+                )}
+                
+                {roomData.players && Object.entries(roomData.players).sort((a: any, b: any) => b[1].score - a[1].score)[0] && (
+                  <div className="flex flex-col items-center transform -translate-y-12 z-10">
+                    <div className="bg-yellow-500/20 border-4 border-yellow-500 p-10 rounded-t-3xl w-80 text-center">
+                      <Crown className="w-24 h-24 text-yellow-400 mb-6" />
+                      <span className="text-4xl font-black text-yellow-400 block truncate">
+                        {Object.entries(roomData.players).sort((a: any, b: any) => b[1].score - a[1].score)[0][1].name}
+                      </span>
+                      <span className="text-3xl font-mono text-yellow-200 mt-3 block">
+                        {Object.entries(roomData.players).sort((a: any, b: any) => b[1].score - a[1].score)[0][1].score} pts
+                      </span>
+                    </div>
+                    <div className="bg-gradient-to-b from-yellow-600 to-yellow-800 w-80 h-48 rounded-b-xl border-x-4 border-b-4 border-yellow-600 flex justify-center items-center">
+                      <span className="text-8xl font-black text-yellow-900/50">1</span>
+                    </div>
+                  </div>
+                )}
+                
+                {roomData.players && Object.entries(roomData.players).sort((a: any, b: any) => b[1].score - a[1].score)[2] && (
+                  <div className="flex flex-col items-center">
+                    <div className="bg-amber-700/20 border-2 border-amber-700 p-6 rounded-t-3xl w-56 text-center">
+                      <Medal className="w-12 h-12 text-amber-600 mb-3" />
+                      <span className="text-2xl font-bold text-amber-500 block truncate">
+                        {Object.entries(roomData.players).sort((a: any, b: any) => b[1].score - a[1].score)[2][1].name}
+                      </span>
+                      <span className="text-xl font-mono text-amber-600 mt-1 block">
+                        {Object.entries(roomData.players).sort((a: any, b: any) => b[1].score - a[1].score)[2][1].score} pts
+                      </span>
+                    </div>
+                    <div className="bg-gradient-to-b from-amber-800 to-amber-950 w-56 h-20 rounded-b-lg border-x-2 border-b-2 border-amber-900 flex justify-center items-center">
+                      <span className="text-5xl font-black text-amber-950/50">3</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+    );
 }
+
+  if (!currentRoomCode || !roomData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-900 to-purple-900 text-white flex flex-col items-center justify-center p-4 font-sans">
+        <div className="max-w-md w-full bg-gray-800/80 p-8 rounded-2xl shadow-2xl backdrop-blur-sm border border-gray-700">
+          <div className="flex justify-center mb-6">
+            <ImageIcon className="w-16 h-16 text-purple-400" />
+          </div>
+          <h1 className="text-4xl font-extrabold text-center mb-8 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-500">
+            Meme Maker
+          </h1>
+          
+          {errorMsg && (
+            <div className="bg-red-500/20 border border-red-500 text-red-200 p-3 rounded-lg mb-6 flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <p className="text-sm">{errorMsg}</p>
+            </div>
+          )}
+
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Ton Pseudo</label>
+              <input 
+                type="text" 
+                value={playerName} 
+                onChange={(e) => setPlayerName(e.target.value)}
+                maxLength={15}
+                className="w-full bg-gray-900 border border-gray-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                placeholder="Ex: LeRigolodu93"
+              />
+            </div>
+
+            <button 
+              onClick={createRoom}
+              className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-4 rounded-xl transition-colors shadow-lg shadow-purple-900/50"
+            >
+              Créer une nouvelle salle
+            </button>
+
+            <div className="relative flex py-2 items-center">
+              <div className="flex-grow border-t border-gray-600"></div>
+              <span className="flex-shrink-0 mx-4 text-gray-400 text-sm">OU</span>
+              <div className="flex-grow border-t border-gray-600"></div>
+            </div>
+
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                value={roomCodeInput} 
+                onChange={(e) => setRoomCodeInput(e.target.value.toUpperCase())}
+                maxLength={4}
+                className="w-2/3 bg-gray-900 border border-gray-600 rounded-xl px-4 py-3 text-white font-mono text-center text-xl tracking-widest focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-all"
+                placeholder="CODE"
+              />
+              <button 
+                onClick={joinRoom}
+                className="w-1/3 bg-pink-600 hover:bg-pink-500 text-white font-bold py-3 px-4 rounded-xl transition-colors shadow-lg shadow-pink-900/50"
+              >
+                Rejoindre
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const playersList = Object.entries(roomData.players || {}).map(([id, p]: [string, any]) => ({ id, ...p }));
+  const sortedPlayers = [...playersList].sort((a, b) => b.score - a.score);
+
+  const myCaption = roomData.captions?.[user.uid];
+  const allSubmitted = playersList.length > 0 && 
+    (Object.keys(roomData.captions || {}).length + Object.keys(roomData.pendingCaptions || {}).length) === playersList.length;
+
+  const isGameFinished = roomData.playedMemes?.length >= LOCAL_MEME_LIBRARY.length;
+
+  const memeTextStyle = {
+    fontFamily: 'Impact, sans-serif',
+    textTransform: 'uppercase',
+    color: 'white',
+    textShadow: '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 0px 2px 0 #000, 2px 0px 0 #000, 0px -2px 0 #000, -2px 0px 0 #000',
+    wordWrap: 'break-word',
+    textAlign: 'center',
+    lineHeight: '1.1'
+  };
+
+  const pendingCaptionsCount = Object.keys(roomData.pendingCaptions || {}).length;
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white font-sans flex flex-col">
+      <header className="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center shadow-md">
+        <div className="flex items-center gap-4">
+          <ImageIcon className="text-purple-400 w-8 h-8" />
+          <h1 className="text-xl font-bold hidden sm:block">Meme Maker</h1>
+          <div className="bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-700 flex items-center gap-2">
+            <span className="text-sm text-gray-400">Code:</span>
+            <span className="font-mono font-bold tracking-wider text-purple-400">{currentRoomCode}</span>
+            <button 
+              onClick={() => navigator.clipboard.writeText(currentRoomCode)}
+              className="text-gray-500 hover:text-white ml-1"
+              title="Copier le code"
+            >
+              <Copy className="w-4 h-4" />
+            </button>
+          </div>
+          {isHost() && (
+            <button 
+              onClick={openPresenterMode}
+              className="bg-purple-700 hover:bg-purple-600 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1"
+              title="Ouvrir le mode présentateur"
+            >
+              <Presentation className="w-4 h-4" />
+              <span className="hidden sm:inline">Mode Présentateur</span>
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="bg-gray-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
+            {roomData.players[user.uid]?.name} 
+            <span className="text-yellow-400 text-xs">({roomData.players[user.uid]?.score} pts)</span>
+          </span>
+          <button onClick={() => setCurrentRoomCode(null)} className="text-gray-400 hover:text-white transition-colors">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+      </header>
+
+      {errorMsg && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-red-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2"></div>
+          <AlertCircle className="w-5 h-5" /> {errorMsg}
+          <button onClick={() => setErrorMsg('')}><X className="w-4 h-4 ml-2" /></button>
+        </div>
+      )}
+
+      <main className="flex-grow flex flex-col items-center p-4 sm:p-6 overflow-y-auto">
