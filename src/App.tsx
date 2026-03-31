@@ -375,25 +375,29 @@ export default function App() {
     
     const censoredTexts = currentTexts.map(t => censorText(t, roomData.bannedWords));
     const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomCode);
+    const updates: Record<string, any> = {};
+    
+    // Si l'utilisateur avait été rejeté, on le retire de la liste des rejets puisqu'il resoumet
+    if (roomData.rejectedMemes?.includes(user.uid)) {
+      updates.rejectedMemes = arrayRemove(user.uid);
+    }
     
     if (roomData.moderationEnabled && hasInappropriateContent && 
         inappropriateResults.some(result => result.detectedWords.some((word: any) => !word.isWholeWord))) {
-      await updateDoc(roomRef, {
-        [`pendingCaptions.${user.uid}`]: {
+      updates[`pendingCaptions.${user.uid}`] = {
           texts: censoredTexts,
           originalTexts: currentTexts,
           timestamp: new Date().getTime(),
           inappropriateWords
-        }
-      });
+      };
+      await updateDoc(roomRef, updates);
       setErrorMsg("Votre mème a été soumis pour modération.");
     } else {
-      await updateDoc(roomRef, {
-        [`captions.${user.uid}`]: {
+      updates[`captions.${user.uid}`] = {
           texts: censoredTexts,
           votes: 0
-        }
-      });
+      };
+      await updateDoc(roomRef, updates);
     }
   };
 
