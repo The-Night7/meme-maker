@@ -161,6 +161,7 @@ export default function PresenterView() {
                             color: 'white',
                             textShadow: '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000',
                             wordWrap: 'break-word',
+                            whiteSpace: 'pre-wrap', // <--- AJOUTE CETTE LIGNE ICI AUSSI
                             textAlign: 'center',
                             fontSize: 'clamp(1rem, 3vw, 2rem)'
                           }}

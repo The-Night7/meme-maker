@@ -234,12 +234,13 @@ export default function AdminView() {
     );
   }
 
-  const memeTextStyle = {
+  const memeTextStyle: React.CSSProperties = {
     fontFamily: 'Impact, sans-serif',
     textTransform: 'uppercase',
     color: 'white',
     textShadow: '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 0px 2px 0 #000, 2px 0px 0 #000, 0px -2px 0 #000, -2px 0px 0 #000',
     wordWrap: 'break-word',
+    whiteSpace: 'pre-wrap', // <--- AJOUTE CETTE LIGNE ICI
     textAlign: 'center',
     lineHeight: '1.1'
   };

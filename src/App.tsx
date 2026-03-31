@@ -94,6 +94,7 @@ const memeTextStyle: React.CSSProperties = {
   color: 'white',
   textShadow: '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 0px 2px 0 #000, 2px 0px 0 #000, 0px -2px 0 #000, -2px 0px 0 #000',
   wordWrap: 'break-word',
+  whiteSpace: 'pre-wrap', // <--- AJOUTE CETTE LIGNE ICI
   textAlign: 'center',
   lineHeight: '1.1'
 };
@@ -906,7 +907,13 @@ export default function App() {
                       {roomData.currentMeme.zones.map((zone: any, idx: number) => (
                         <div key={idx}>
                           <label className="block text-xs text-gray-400 mb-1">{zone.placeholder}</label>
-                          <input type="text" placeholder={`${zone.placeholder}...`} value={currentTexts[idx] || ''} onChange={(e) => { const newTexts = [...currentTexts]; newTexts[idx] = e.target.value; setCurrentTexts(newTexts); }} className="w-full bg-gray-900 border border-gray-600 rounded-xl px-4 py-3 text-white uppercase focus:ring-2 focus:ring-purple-500 transition-all" />
+                          <textarea 
+                            rows={2} 
+                            placeholder={`${zone.placeholder}...`} 
+                            value={currentTexts[idx] || ''} 
+                            onChange={(e) => { const newTexts = [...currentTexts]; newTexts[idx] = e.target.value; setCurrentTexts(newTexts); }} 
+                            className="w-full bg-gray-900 border border-gray-600 rounded-xl px-4 py-3 text-white uppercase focus:ring-2 focus:ring-purple-500 transition-all resize-y min-h-[60px]" 
+                          />
                         </div>
                       ))}
                       <button onClick={submitCaption} className="w-full bg-purple-600 hover:bg-purple-500 font-bold py-3 rounded-xl mt-4 shadow-lg transition-transform active:scale-95">Valider mon Meme</button>
