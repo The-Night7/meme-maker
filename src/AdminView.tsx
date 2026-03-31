@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
-import { db, appId } from './firebase'; // <-- Ajout de appId
+import { db, appId } from './firebase';
+import { LOCAL_MEME_LIBRARY, THEMES_LIBRARY } from './App';
 import { 
   ThumbsUp, 
   ThumbsDown, 
@@ -45,10 +46,29 @@ export default function AdminView() {
 
   // Fonctions d'administration
   const startGame = async () => {
+    if (!roomData) return;
+    
     try {
+      let playedMemes = roomData.playedMemes || [];
+      let availableMemes = LOCAL_MEME_LIBRARY.filter(meme => !playedMemes.includes(meme.url));
+      
+      if (availableMemes.length === 0) {
+        setError("Tous les mèmes ont été joués !");
+        return;
+      }
+      
+      const randomMeme = availableMemes[Math.floor(Math.random() * availableMemes.length)];
+      const randomTheme = THEMES_LIBRARY[Math.floor(Math.random() * THEMES_LIBRARY.length)];
+      
+      // Utilisation du chemin Firestore complet
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
         status: 'playing',
-        // Autres champs nécessaires pour démarrer une nouvelle manche
+        currentMeme: randomMeme,
+        currentTheme: randomTheme,
+        captions: {},
+        pendingCaptions: {},
+        voters: [],
+        playedMemes: [...playedMemes, randomMeme.url]
       });
     } catch (err) {
       console.error("Erreur lors du démarrage de la partie:", err);
@@ -248,7 +268,7 @@ export default function AdminView() {
                 </button>
               )}
 
-              {roomData.status === 'playing' && (
+              {roomData.status === 'playing' && roomData.currentMeme && (
                 <button 
                   onClick={advanceToVoting}
                   className={`w-full py-2 rounded-lg font-medium flex items-center justify-center gap-2 ${
@@ -411,7 +431,7 @@ export default function AdminView() {
               {roomData.status === 'final' && 'Classement final'}
             </h2>
 
-            {roomData.status === 'playing' && (
+            {roomData.status === 'playing' && roomData.currentMeme && (
               <div className="space-y-4">
                 <div className="bg-purple-900/30 border border-purple-500 p-4 rounded-xl">
                   <h3 className="text-lg font-medium mb-2">Thème actuel</h3>

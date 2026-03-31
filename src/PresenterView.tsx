@@ -100,7 +100,7 @@ export default function PresenterView() {
         )}
         
         {/* PHASE 2: CREATION DU MEME */}
-        {roomData.status === 'playing' && (
+        {roomData.status === 'playing' && roomData.currentMeme && (
           <div className="text-center w-full max-w-5xl">
             <h2 className="text-4xl font-bold mb-6">Création des Mèmes</h2>
             <div className="bg-purple-900/50 border border-purple-500 rounded-xl p-6 mb-12">
