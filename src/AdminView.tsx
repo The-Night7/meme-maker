@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, increment } from 'firebase/firestore';
 import { db, appId } from './firebase';
 import { LOCAL_MEME_LIBRARY, THEMES_LIBRARY } from './App';
 import { 
@@ -136,11 +136,21 @@ export default function AdminView() {
       setError("Impossible de passer à la phase de vote");
     }
   };
+
   const advanceToResults = async () => {
+    if (!roomData) return;
+    
     try {
-      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), {
-        status: 'results',
+      const updates = { status: 'results' };
+      
+      // On calcule et on distribue les points comme dans App.tsx
+      Object.entries(roomData.captions || {}).forEach(([uid, cap]) => {
+        if (cap.votes > 0) {
+          updates[`players.${uid}.score`] = increment(cap.votes * 100);
+        }
       });
+
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomCode), updates);
     } catch (err) {
       console.error("Erreur lors du passage aux résultats:", err);
       setError("Impossible d'afficher les résultats");
